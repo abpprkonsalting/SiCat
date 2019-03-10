@@ -14,10 +14,16 @@
 # include "http.h"
 # include "mime.h"
 
-GIOChannel *http_bind_socket( const char *ip, int port, int queue ) { 
+GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     struct sockaddr_in addr;
     int fd, r, n = 1;
     
+	/*
+	g_message("gateway ip: %s",ip);
+	g_message("gateway port: %d",port);
+	g_message("gateway queue: %d",queue);
+	*/
+
     addr.sin_family = AF_INET;
     addr.sin_port   = htons(port);
     r = inet_aton( ip, &addr.sin_addr );
@@ -41,8 +47,12 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
 	g_error("fcntl F_GETFL on %s: %m", ip );
 
     r = fcntl( fd, F_SETFL, n | O_NDELAY );
-    if (n == -1)
-	g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
+
+	/* aparently there is an error here, we should check r, not n
+    if (n == -1)*/
+
+	if (r == -1)	g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
+
     /* 
      * n = fcntl( fd, F_GETFL, 0 );
      * g_warning("fd %d has O_NDELAY %s", fd, (n | O_NDELAY ? "set" : "unset"));
@@ -56,6 +66,7 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
 }
 
 http_request *http_request_new ( GIOChannel *sock ) {
+
     http_request *h = g_new0(http_request, 1);
     int fd = g_io_channel_unix_get_fd( sock );
     struct sockaddr_in addr;
@@ -71,8 +82,7 @@ http_request *http_request_new ( GIOChannel *sock ) {
     h->buffer = g_string_new("");
 
     r = getsockname( fd, (struct sockaddr *)&addr, &n );
-    if (r == -1)
-	g_error( "getsockname failed: %m" );
+    if (r == -1) g_error( "getsockname failed: %m" );
     r2 = inet_ntop( AF_INET, &addr.sin_addr, h->sock_ip, INET_ADDRSTRLEN );
     g_assert( r2 != NULL );
 
@@ -125,7 +135,12 @@ GHashTable *parse_query_string( gchar *query ) {
     return data;
 }
 
+/************* http header extraction function *******/
 GHashTable *http_parse_header (http_request *h, gchar *req) {
+
+/*This function extracts the http header from the request and fills the GHashTable structure
+"h->header" of the http_request structure, besides fills the string members h->method and h->uri*/
+
     GHashTable *head = g_hash_new();
     gchar **lines, **items, *key, *val, *p;
     guint i;
@@ -187,51 +202,75 @@ GHashTable *http_parse_query (http_request *h, gchar *post) {
     return h->query;
 }
 
+/*************  *******/
 guint http_request_read (http_request *h) {
-    gchar *buf = g_new( gchar, BUFSIZ + 1 );
-    GIOError r;
-    guint n, t;
-    gchar *c_len_hdr;
-    guint c_len;
-    guint tot_req_size;
-    gchar *hdr_end = NULL;
 
-    // g_message("entering http_request_read");
-    for (t = 0, n = BUFSIZ; h->buffer->len < MAX_REQUEST_SIZE &&
-	    (hdr_end = strstr(h->buffer->str, "\r\n\r\n")) == NULL; t += n ) {
-	// g_message("entering read loop");
-	r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
-	// g_message("read loop: read %d bytes of %d (%d)", n, BUFSIZ, r);
-	if (r != G_IO_ERROR_NONE) {
-	    g_warning( "read_http_request failure: %m" );
-	    g_free(buf);
-	    return 0;
+	gchar *buf = g_new( gchar, BUFSIZ + 1 );
+	GIOError r;
+	guint n, t;
+	gchar *c_len_hdr;
+	guint c_len;
+	guint tot_req_size;
+	gchar *hdr_end = NULL;
+	guint cont = 0;
+	//GIOFlags flags;
+
+	//g_message("entering http_request_read");
+
+	for (t = 0, n = BUFSIZ; h->buffer->len < MAX_REQUEST_SIZE &&
+		(hdr_end = strstr(h->buffer->str, "\r\n\r\n")) == NULL; t += n ) {
+		//g_message("entering read loop");
+
+		//flags = g_io_channel_get_flags(h->sock);
+		//g_message("%d",(h->sock.channel_flags | G_IO_FLAG_IS_READABLE));
+
+		r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
+		//g_message("read loop: read %d bytes of %d (%d)", n, BUFSIZ, r);
+
+		if (r != G_IO_ERROR_NONE) {
+			g_warning( "read_http_request failure: %m" );
+			g_free(buf);
+			return 0;
+		}
+		//if (n != 0) g_message("%s", buf);
+		if (n == 0){
+			cont++;
+			if (cont == 5) {
+				//g_message("bateo");
+				return 0;
+			}
+		}
+		buf[n] = '\0';
+		g_string_append(h->buffer, buf);
 	}
-	buf[n] = '\0';
-	g_string_append(h->buffer, buf);
-    }
-    http_parse_header( h, h->buffer->str );
-    c_len_hdr = HEADER("Content-length");
-    if (c_len_hdr == NULL) {
-    	c_len = 0;
-    } else {
-    	c_len = atoi( c_len_hdr );
-    }
-    tot_req_size = hdr_end - h->buffer->str + 4 + c_len;
-    for (; t < tot_req_size; t += n ) {
-	// g_message("entering read loop");
-	r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
-	// g_message("read loop: read %d bytes of %d (%d)", n, BUFSIZ, r);
-	if (r != G_IO_ERROR_NONE) {
-	    g_warning( "read_http_request failure: %m" );
-	    g_free(buf);
-	    return 0;
+	//g_message(h->buffer->str);	
+
+	http_parse_header( h, h->buffer->str );
+
+	c_len_hdr = HEADER("Content-length");
+	if (c_len_hdr == NULL) {
+		c_len = 0;
+	} else {
+		c_len = atoi( c_len_hdr );
 	}
-	buf[n] = '\0';
-	g_string_append(h->buffer, buf);
-    }
-    g_free(buf);
-    return t;
+
+/*The following block of code requires revision */
+
+	tot_req_size = hdr_end - h->buffer->str + 4 + c_len;
+	for (; t < tot_req_size; t += n ) {
+		//g_message("entering read loop");
+		r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
+		//g_message("read loop: read %d bytes of %d (%d)", n, BUFSIZ, r);
+		if (r != G_IO_ERROR_NONE) {
+		g_warning( "read_http_request failure: %m" );
+		g_free(buf);
+		return 0;
+		}
+		buf[n] = '\0';
+		g_string_append(h->buffer, buf);
+	}
+	g_free(buf);
+	return t;
 }
 
 gboolean http_request_ok (http_request *h) {
@@ -240,7 +279,7 @@ gboolean http_request_ok (http_request *h) {
     guint c_len;
 
     if (header_end != NULL) {
-	// g_warning( "inside http_request_ok: header_end found" );
+	//g_warning( "inside http_request_ok: header_end found" );
 
 	c_len_hdr = HEADER("Content-length");
 	if (c_len_hdr == NULL) {
@@ -263,7 +302,7 @@ gboolean http_request_ok (http_request *h) {
 	    return TRUE;
 	}
     }
-    // g_warning( "inside http_request_ok: header_end not found" );
+    g_warning( "inside http_request_ok: header_end not found" );
     return FALSE;
 }
 

@@ -1,0 +1,3 @@
+#ifndef WITHLIBWEBSOCKETS
+#define LIBWEBSOCKETS
+#endif

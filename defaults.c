@@ -51,6 +51,18 @@ struct conf_t default_conf[] = {
     { "DecryptCmd",	 "$GpgPath --decrypt --homedir=$PGPKeyPath "
 			 "--keyring trustedkeys.gpg --no-tty -o-" },
 
+	/* Websocket defaults*/
+	{ "wsk_server_address",	NULL},
+	{ "wsk_server_port",	0},
+	{ "wsk_path_on_server",	"/"},
+	{ "wsk_server_hostname",	NULL},
+	{ "wsk_origin_name",	NULL},
+	{ "wsk_protocol",	0},
+	{ "wsk_iface",	NULL},
+	{ "wsk_use_ssl",	0},
+	{ "ietf_version",	-1},
+	
+
     /*** Trailing NULL ***/
     { "Version",	 PACKAGE_VERSION },
     { NULL, NULL }

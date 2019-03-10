@@ -102,6 +102,7 @@ void set_network_defaults( GHashTable *conf ) {
 }
 
 GHashTable *read_conf_file( const gchar *path ) {
+
     gchar *file = load_file(path);
 
     if (file == NULL) 
@@ -120,37 +121,65 @@ GHashTable *read_conf_file( const gchar *path ) {
     return nocat_conf;
 }
 
-gchar *conf_string( GHashTable *conf, const gchar *key ) {
-    gchar *val = g_hash_table_lookup( conf, key );
-    g_assert( key != NULL );
-    g_assert( conf != NULL );
-    if (val == NULL)
-	g_warning("Missing required configuration directive '%s'", key);
-    return val;
+gchar *conf_string( GHashTable *conf, const gchar *key ){
+
+	/* abp: The line order was changed because it does not feels right to execute g_hash_table_lookup before asserting key and conf
+	gchar *val = g_hash_table_lookup( conf, key );
+	g_assert( key != NULL );
+	g_assert( conf != NULL );*/
+
+	gchar* val;
+	
+	g_assert( key != NULL);
+	g_assert( conf != NULL );
+
+	val = g_hash_table_lookup( conf, key );
+	if (val == NULL) g_warning("Missing required configuration directive '%s'", key);
+	return val;
 }
 
 glong conf_int( GHashTable *conf, const gchar *key ) {
-    gchar *val = g_hash_table_lookup( conf, key );
-    gchar *err;
-    glong vint;
-    g_assert( key != NULL );
-    if (val == NULL)
-	g_warning("Missing required configuration directive '%s'", key);
-    vint = strtol( val, &err, 10 );
-    if ( err != NULL && *err != '\0' )
-	g_warning("Invalid numeric configuration directive '%s': %s", key, val );
-    return vint;
+
+	/* abp: The line order was changed because it does not feels right to execute g_hash_table_lookup before assertin key,
+		besides it was added the assertion of conf, that is missing
+	gchar *val = g_hash_table_lookup( conf, key );*/
+
+	gchar *val;
+
+	gchar *err;
+	glong vint;
+
+	g_assert( key != NULL );
+	g_assert( conf != NULL );
+
+	val = g_hash_table_lookup( conf, key );
+	if (val == NULL) g_warning("Missing required configuration directive '%s'", key);
+
+	vint = strtol( val, &err, 10 );
+	if ( err != NULL && *err != '\0' ) g_warning("Invalid numeric configuration directive '%s': %s", key, val );
+
+	return vint;
 }
 
 gdouble conf_float( GHashTable *conf, const gchar *key ) {
-    gchar *val = g_hash_table_lookup( conf, key );
-    gchar *err;
-    gdouble vdbl;
-    g_assert( key != NULL );
-    if (val == NULL)
-	g_warning("Missing required configuration directive '%s'", key);
-    vdbl = strtod( val, &err );
-    if ( err != NULL && *err != '\0' )
+
+	/* abp: The line order was changed because it does not feels right to execute g_hash_table_lookup before assertin key,
+		besides it was added the assertion of conf, that is missing
+	gchar *val = g_hash_table_lookup( conf, key );*/
+
+	gchar *val;
+
+	gchar *err;
+	gdouble vdbl;
+
+	g_assert( key != NULL );
+	g_assert( conf != NULL );
+
+	val = g_hash_table_lookup( conf, key );
+	if (val == NULL) g_warning("Missing required configuration directive '%s'", key);
+
+	vdbl = strtod( val, &err );
+	if ( err != NULL && *err != '\0' )
 	g_warning("Invalid numeric configuration directive '%s': %s", key, val );
-    return vdbl;
+	return vdbl;
 }

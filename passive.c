@@ -1,6 +1,8 @@
 # include <glib.h>
 # include <string.h>
 # include <stdio.h>
+# include <netinet/in.h>
+# include <sys/socket.h>
 # include <sys/types.h>
 # include <sys/wait.h>
 # include <unistd.h>
@@ -12,6 +14,7 @@ void capture_peer ( http_request *h, peer *p ) {
     GHashTable *args = g_hash_new();
     GString *dest;
 
+	//g_message("entre en capture_peer de passive.c");
     g_hash_set( args, "redirect",   redir );
     g_hash_set( args, "token",	    get_peer_token(p) );
     g_hash_set( args, "mac",	    p->hw );
@@ -20,6 +23,20 @@ void capture_peer ( http_request *h, peer *p ) {
 
     dest = build_url( CONF("AuthServiceURL"), args );
     http_send_redirect( h, dest->str );
+
+//***********************************************************************************************
+
+	gint fd = g_io_channel_unix_get_fd(h->sock);
+	struct sockaddr_in remote_socket;	
+	int n = sizeof(struct sockaddr_in);
+
+	getpeername (fd, (struct sockaddr *)&remote_socket,  &n );
+
+	g_message( "Captured peer %s:%d", h->peer_ip,remote_socket.sin_port );
+
+//***********************************************************************************************
+
+/*Over here should be inserted the connection with the auth server ?*/
 
     g_string_free( dest, 1 );
     g_hash_free( args );

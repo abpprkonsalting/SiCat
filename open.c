@@ -2,6 +2,8 @@
 # include <string.h>
 # include <stdio.h>
 # include <unistd.h>
+# include <netinet/in.h>
+# include <sys/socket.h>
 # include "gateway.h"
 
 gchar *splash_page = NULL;
@@ -17,7 +19,17 @@ void capture_peer ( http_request *h ) {
 
     http_send_redirect( h, dest );
 
-    g_message( "Captured peer %s", h->peer_ip );
+//***********************************************************************************************
+
+	gint fd = g_io_channel_unix_get_fd(h->sock);
+	struct sockaddr_in remote_socket;	
+	int n = sizeof(struct sockaddr_in);
+
+	getpeername (fd, (struct sockaddr *)&remote_socket,  &n );
+
+//***********************************************************************************************
+
+    g_message( "Captured peer %s:%d", h->peer_ip,remote_socket.sin_port );
 
     g_free( orig  );
     g_free( redir );
@@ -63,7 +75,8 @@ void handle_request( http_request *h ) {
 
     if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
 	capture_peer(h);
-    } else if (strcmp( h->uri, "/" ) == 0) {
+    }
+    else if (strcmp( h->uri, "/" ) == 0) {
 	if ( QUERY("mode_login") != NULL || QUERY("mode_login.x") != NULL ) {
 	    accept_peer(h);
 	    sleep(2);
@@ -73,9 +86,11 @@ void handle_request( http_request *h ) {
 	} else {
 	    capture_peer(h);
 	}
-    } else if (strcmp( h->uri, "/status" ) == 0) {
+    }
+    else if (strcmp( h->uri, "/status" ) == 0) {
 	status_page( h );
-    } else {
+    } 
+    else {
 	http_serve_file( h, CONF("DocumentRoot") );
     }
 
