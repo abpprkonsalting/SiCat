@@ -82,10 +82,15 @@ iptables -t filter -F NoCat_Ports
 iptables -t filter -D NoCat -j NoCat_Ports
 iptables -t filter -A NoCat -j NoCat_Ports
 
-iptables -t filter -N NoCat_Inbound
-iptables -t filter -F NoCat_Inbound
-iptables -t filter -D NoCat -j NoCat_Inbound
-iptables -t filter -A NoCat -j NoCat_Inbound
+iptables -t filter -N NoCat_Inbound0
+iptables -t filter -F NoCat_Inbound0
+iptables -t filter -D NoCat -j NoCat_Inbound0
+iptables -t filter -A NoCat -j NoCat_Inbound0
+
+iptables -t filter -N NoCat_Inbound1
+iptables -t filter -F NoCat_Inbound1
+iptables -t filter -D NoCat -j NoCat_Inbound1
+iptables -t filter -A NoCat -j NoCat_Inbound1
 
 iptables -t nat -N NoCat_Capture
 iptables -t nat -F NoCat_Capture
@@ -102,16 +107,25 @@ iptables -t nat -D POSTROUTING -j NoCat_NAT
 [ "$RouteOnly" ] || iptables -t nat -A POSTROUTING -j NoCat_NAT
 #iptables -t nat -A POSTROUTING -j NoCat_NAT
 
-iptables -t mangle -N NoCat
-iptables -t mangle -F NoCat
-iptables -t mangle -D PREROUTING -i $InternalDevice -j NoCat
-iptables -t mangle -A PREROUTING -i $InternalDevice -j NoCat
+iptables -t mangle -A PREROUTING -i $InternalDevice -j MARK --set-mark 4
+
+iptables -t mangle -N NoCat0
+iptables -t mangle -F NoCat0
+iptables -t mangle -D PREROUTING -i $InternalDevice -j NoCat0
+iptables -t mangle -A PREROUTING -i $InternalDevice -j NoCat0
+
+iptables -t mangle -N NoCat1
+iptables -t mangle -F NoCat1
+iptables -t mangle -D PREROUTING -i $InternalDevice -j NoCat1
+iptables -t mangle -A PREROUTING -i $InternalDevice -j NoCat1
+
 
 fwd="iptables	    -t filter -A NoCat"
 ports="iptables	    -t filter -A NoCat_Ports"
 nat="iptables	    -t nat    -A NoCat_NAT"
 redirect="iptables  -t nat    -A NoCat_Capture"
-mangle="iptables    -t mangle -A NoCat"
+#mangle="iptables    -t mangle -A NoCat0"
+#mangle1="iptables    -t mangle -A NoCat1"
 
 if [ "$MembersOnly" ]; then
   classes="1 2"
@@ -167,7 +181,8 @@ for iface in $InternalDevice; do
 	done
 
     # Set packets from internal devices to fw mark 4, or 'denied', by default.
-    $mangle -i $iface -j MARK --set-mark 4
+    #$mangle -i $iface -j MARK --set-mark 4
+    #$mangle1 -i $iface -j MARK --set-mark 4
 done
 
 # Redirect outbound non-auth web traffic to the local gateway process
@@ -180,6 +195,7 @@ if [ "$MembersOnly" ]; then
 else
     nonauth="4"
 fi
+
 for port in 80; do
     for mark in $nonauth; do
 #	$redirect -m mark --mark $mark -d windowsupdate.microsoft.com -j DROP

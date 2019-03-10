@@ -1,0 +1,49 @@
+Changelog
+---------
+
+2014-09-03:
+
+Changed the mechanism for checking the connection time of users to the system. Now the program does not have a control of the connected users
+but in the "access.fw" file, when the rules are added to iptables that allow the user to pass through the firewall, these are
+setted with a validity time, using the "time" module of iptables with its variables "timestart", "timestop" and "kerneltz":
+
+iptables -t mangle ... -m time --timestart $ start --timestop $ end --kerneltz ...
+iptables -t filter ... -m time --timestart $ start --timestop $ end --kerneltz ...
+
+This time of validity depends on whether it is in time of authentication (LoginGrace) or fully authenticated (LoginTimeOut).
+
+This new variant allows that if the program crash, the users that are connected at that moment, are kept completely controlled, since
+the connection time control is still in iptables.
+
+4 tables were created in iptables: NoCat_Inbound0 and NoCat_Inbound1 in replacement of NoCat_Inbound in the filter table, and NoCat0 and NoCat1 in substitution
+of NoCat in the mangle table. This is to selectively eliminate the rules of the users that are becoming obsolete. For this a function was created
+of timeout that is executed at a time: "LoginTimeOut + 1 minute" and that changes the active tables for the insertion of the new rules. Before a table is activated, 
+it is completely cleaned. That the time of change of tables is "LoginTimeOut + 1 minute" guarantees that when a table is cleaned in it there is no rule of an active user:
+
+
+		LoginTimeOut + 1m			LoginTimeOut + 1m				LoginTimeOut + 1m
+  -------------------------------------------- -------------------------------------------- --------------------------------------------
+ | 	    table NoCat_Inbound0 active           |		     table NoCat_Inbound1 active	   | 		table NoCat_Inbound0 active         |
+  -------------------------------------------- -------------------------------------------- --------------------------------------------
+					    |						| |
+					    |						| |
+					    |_________________LoginTimeOut_______________| |
+												|
+					 					X user allowed in firewall	   |
+											   	|
+											   	|
+											   	V
+								Here the table NoCat_Inbound0 gets cleaned before
+								been used again. The user X will have spend it's 
+								connection time because it will pass more than 
+								LoginTimeOut.
+
+A check was made as to whether the program ended correctly or not before loading the firewall rules at the start of the program. This is to avoid
+restarting the iptables firewall rules in case the program crash, so that the rules of active clients are maintained.
+
+This check was implemented based on a file that is created in the / tmp directory, which in mikrotik devices is in operational memory.
+The only way this file is deleted is if the device is reset (or if the program closes correctly, which should not happen during the
+normal work of this).
+
+A memory usage check was created, if it passes from a higher limit set in the memlimit variable of the configuration file the program will be
+close, giving m'argen for the csicatd daemon to restart the program.

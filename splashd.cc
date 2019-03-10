@@ -29,7 +29,7 @@ gboolean show_socket_pairs(gchar* function_name, http_request *h){
     	//g_assert( r2 != NULL );
 
 	g_debug( "%s: fd = %d -- remote address = %s:%d -- local address = %s:%d",
-			function_name , fd, remoteaddr_ip, remote_port, localaddr_ip, local_port);
+			function_name , fd, r2, remote_port, localaddr_ip, local_port);
 
 	return TRUE;
 
@@ -37,10 +37,12 @@ gboolean show_socket_pairs(gchar* function_name, http_request *h){
 
 /************ Check peer timeouts **************/
 
-gboolean check_peers( void *dummy ) {
+gboolean change_table( void *dummy ) {
 
-	time_t now = time(NULL);
-	g_hash_table_foreach_remove( peer_tab, (GHRFunc)check_peer_expire, &now );
+	if ( strcmp(table,"0") == 0) strcpy(table,"1");
+	else strcpy(table,"0");
+	fw_resettable (nocat_conf);
+
 	return TRUE;
 }
 
@@ -86,20 +88,19 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 
 	GIOChannel* conn;
 	http_request* req; /* defined in http.h */
-	GError* gerror = NULL;
-	int fd,r,n;
+	int fd,n;
 	pid_t mypid;
 	guint sourc_id;
 	
 
-	g_debug ("handle_accept: entering..");
+	//g_debug ("handle_accept: entering..");
 	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
 
 	n = fcntl( fd, F_GETFL, 0 );
-    r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
+    fcntl( fd, F_SETFL, n | O_NONBLOCK);
     
     mypid = getpid();
-    r = fcntl( fd, F_SETOWN, mypid);
+    fcntl( fd, F_SETOWN, mypid);
 	
 	conn = g_io_channel_unix_new( fd );
 	
@@ -123,7 +124,7 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 		g_io_channel_unref(conn);
 		
 	}
-	g_debug ("handle_accept: leaving..");
+	//g_debug ("handle_accept: leaving..");
 	return TRUE;
 }
 
@@ -131,9 +132,8 @@ gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 
 	GIOChannel* conn;
 	http_request* req; /* defined in http.h */
-	int fd,r,n;
+	int fd,n;
 	pid_t mypid;
-	GError* gerror = NULL;
 
 	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
 
@@ -146,12 +146,12 @@ gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
     
     //g_message("O_NONBLOCK modified = %d",n & O_NONBLOCK);
     
-    r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
+    fcntl( fd, F_SETFL, n | O_NONBLOCK);
 
 	//if (r == -1) g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
     
     mypid = getpid();
-    r = fcntl( fd, F_SETOWN, mypid);
+    fcntl( fd, F_SETOWN, mypid);
 	
 	conn = g_io_channel_unix_new( fd );
 	
@@ -179,14 +179,50 @@ gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 
 gboolean check_exit_signal ( GMainLoop *loop ) {
 	
-    //printf("checking exit signal..");
-    if (exit_signal) {
-	g_message( "check_exit_signal: Caught exit signal %d!", exit_signal );
-	if (pid_file != NULL) {
-	    unlink( NC_PID_FILE );
-	    fclose( pid_file );
+	pid_t my_pid;
+	gchar* nombre;
+	gchar* contenido;
+	gsize length;
+	gchar *start_memory, *end_memory;
+	gchar *VmSize;
+	unsigned int memory_size;
+	gint64 memory_used;
+	
+	my_pid = getpid();
+	nombre = g_new0(gchar,100);
+	g_sprintf(nombre,"%s%d%s","/proc/",my_pid,"/status");
+	g_file_get_contents(nombre,&contenido,&length,NULL);
+	g_free(nombre);
+	
+	start_memory = g_strstr_len(contenido,-1,"VmSize:");
+	end_memory = g_strstr_len(contenido,-1,"VmLck:");
+	memory_size = end_memory - start_memory - 9;
+	VmSize = g_strndup(start_memory+8,memory_size);
+	g_strchug(VmSize);
+	g_strcanon(VmSize,"0123456789",'\0');
+	
+	memory_used = g_ascii_strtoll(VmSize,NULL,0);
+	
+	//g_debug("memoria total usada %d",memory_used);
+	
+	g_free(contenido);
+	g_free(VmSize);
+	
+	if (memory_used > CONFd("memlimit")){
+		
+		g_main_quit( loop );
+		return TRUE;
 	}
-	g_main_quit( loop );
+    
+    if (exit_signal) {
+		
+		g_message( "check_exit_signal: Caught exit signal %d!", exit_signal );
+		if (pid_file != NULL) {
+		    unlink( NC_PID_FILE );
+		    fclose( pid_file );
+		}
+		g_remove("/tmp/sicat.tmp");
+		g_main_quit( loop );
     }
     return TRUE;
 }
@@ -332,30 +368,35 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
 		memory_size = end_memory - start_memory - 9;
 		VmSize = g_strndup(start_memory+8,memory_size);
 		g_strchug(VmSize);
+		g_strcanon(VmSize,"0123456789",'\0');
 		
 		start_memory = g_strstr_len(contenido,-1,"VmRSS:");
 		end_memory = g_strstr_len(contenido,-1,"VmData:");
 		memory_size = end_memory - start_memory - 8;
 		VmRSS = g_strndup(start_memory+7,memory_size);
 		g_strchug(VmRSS);
+		g_strcanon(VmRSS,"0123456789",'\0');
 		
 		start_memory = g_strstr_len(contenido,-1,"VmData:");
 		end_memory = g_strstr_len(contenido,-1,"VmStk:");
 		memory_size = end_memory - start_memory - 9;
 		VmData = g_strndup(start_memory+8,memory_size);
 		g_strchug(VmData);
+		g_strcanon(VmData,"0123456789",'\0');
 		
 		start_memory = g_strstr_len(contenido,-1,"VmStk:");
 		end_memory = g_strstr_len(contenido,-1,"VmExe:");
 		memory_size = end_memory - start_memory - 8;
 		VmStk = g_strndup(start_memory+7,memory_size);
 		g_strchug(VmStk);
+		g_strcanon(VmStk,"0123456789",'\0');
 		
 		start_memory = g_strstr_len(contenido,-1,"VmLib:");
 		end_memory = g_strstr_len(contenido,-1,"VmPTE:");
 		memory_size = end_memory - start_memory - 8;
 		VmLib = g_strndup(start_memory+7,memory_size);
 		g_strchug(VmLib);
+		g_strcanon(VmLib,"0123456789",'\0');
 		
 		g_free(contenido);
 	}
@@ -374,10 +415,10 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
 		strncpy (message_part,message+(i*width),width);
 		
 		if (mem){
-			if ( i == 0) syslog( priority | LOG_DAEMON, "%s - %s - %s - %s - %s -- %s",VmSize,VmRSS,VmData,VmStk,VmLib,message_part);
+			if ( i == 0) syslog( priority | LOG_DAEMON, "%s-%s-%s-%s-%s-- %s",VmSize,VmRSS,VmData,VmStk,VmLib,message_part);
 			else syslog( priority | LOG_DAEMON, "%s", message_part);
 		}
-		else syslog( priority | LOG_DAEMON, "%s", message_part);
+		else syslog(priority | LOG_DAEMON, "%s", message_part);
 		g_free(message_part);
 	}
 	if (mem){
@@ -432,6 +473,7 @@ int main(int argc, char** argv)
 {
 	GMainLoop  *loop;
 	GIOChannel *sock, *sock6;
+	int ret;
 
 	/* read sicat.conf */
 
@@ -453,8 +495,15 @@ int main(int argc, char** argv)
 	set_network_defaults(nocat_conf);
 
 	/* initialize the firewall */
-	fw_init(nocat_conf);
-
+	
+	if (!g_file_test("/tmp/sicat.tmp",G_FILE_TEST_EXISTS)) {
+	
+		fw_init(nocat_conf);
+		ret = creat("/tmp/sicat.tmp",O_RDWR);
+		if (ret == -1) return -1;
+		close(ret);
+	}
+	
 	/* initialize the peer table */
 	peer_tab = g_hash_new();
 
@@ -485,7 +534,11 @@ int main(int argc, char** argv)
 
 	g_io_add_watch( sock, G_IO_IN, (GIOFunc) handle_accept,NULL);
 	if (CONFd("IPv6")) g_io_add_watch( sock6, G_IO_IN, (GIOFunc) handle_accept6,NULL);
-	g_timeout_add( 30000, (GSourceFunc) check_peers, NULL );
+	
+	table = g_new0(gchar,10);
+	strcpy(table,"0");
+	
+	g_timeout_add( ((CONFd("LoginTimeout")*1000) + 60000), (GSourceFunc) change_table, NULL );
 	g_timeout_add( 1000, (GSourceFunc) check_exit_signal, loop );
     
 	/* Go! */

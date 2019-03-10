@@ -34,28 +34,38 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     addr.sin_port   = htons(port);
     r = inet_aton( ip, &addr.sin_addr );
     if (r == 0){
-    	g_error("http_bind_socket: inet_aton failed on %s: %m", ip);
+    	//g_error("http_bind_socket: inet_aton failed on %s: %m", ip);
+    	g_message("http_bind_socket: inet_aton failed on %s: %m", ip);
+    	g_assert(0);
     }
 
     fd = socket( PF_INET, SOCK_STREAM, 0 );
     
     if (fd == -1) {
-    	g_error("http_bind_socket: socket failed: %m");
+    	//g_error("http_bind_socket: socket failed: %m");
+    	g_message("http_bind_socket: socket failed: %m");
+    	g_assert(0);
     }
     
     r = bind( fd, (struct sockaddr *)&addr, sizeof(addr) );
     if (r == -1) {
-    	g_error("http_bind_socket: bind failed on %s: %m", ip);
+    	//g_error("http_bind_socket: bind failed on %s: %m", ip);
+    	g_message("http_bind_socket: bind failed on %s: %m", ip);
+    	g_assert(0);
     }
 
     r = setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n) );
     if (r == -1) {
-    	g_error("http_bind_socket: setsockopt failed on %s: %m", ip);
+    	//g_error("http_bind_socket: setsockopt failed on %s: %m", ip);
+    	g_message("http_bind_socket: setsockopt failed on %s: %m", ip);
+    	g_assert(0);
     }
 
     n = fcntl( fd, F_GETFL, 0 );
     if (n == -1) {
-		g_error("http_bind_socket: fcntl F_GETFL on %s: %m", ip );
+		//g_error("http_bind_socket: fcntl F_GETFL on %s: %m", ip );
+		g_message("http_bind_socket: fcntl F_GETFL on %s: %m", ip);
+    	g_assert(0);
     }
     
     r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
@@ -64,12 +74,16 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     if (n == -1)*/
 
 	if (r == -1) {
-		g_error("http_bind_socket: fcntl F_SETFL O_NONBLOCK on %s: %m", ip );
+		//g_error("http_bind_socket: fcntl F_SETFL O_NONBLOCK on %s: %m", ip );
+		g_message("http_bind_socket: fcntl F_SETFL O_NONBLOCK on %s: %m", ip );
+    	g_assert(0);
 	}
 
     r = listen( fd, queue );
     if (r == -1){
-    	g_error("http_bind_socket: listen failed on %s: %m", ip);
+    	//g_error("http_bind_socket: listen failed on %s: %m", ip);
+    	g_message("http_bind_socket: listen failed on %s: %m", ip);
+    	g_assert(0);
     }
 
     return g_io_channel_unix_new( fd );
@@ -127,6 +141,29 @@ GIOChannel *http_bind_socket6( const char *ip, int port, int queue ) {
     return g_io_channel_unix_new( fd );
 }
 
+void peer_arp_h( http_request *h ) {
+    gchar ip[50], hw[18];
+    FILE *arp;
+
+    arp = fopen( "/proc/net/arp", "r" );
+    if ( arp == NULL ){
+    	g_warning( "Can't open /proc/net/arp: %m" );
+    	return;
+    }
+   
+    fscanf(arp, "%*s %*s %*s %*s %*s %*s %*s %*s %*s"); // Skip first line 
+    while (fscanf( arp, "%15s %*s %*s %17s %*s %*s\n", ip, hw ) != EOF)
+    {
+		if ( strncmp( h->peer_ip, ip, sizeof(h->peer_ip) ) == 0 ) 
+			{
+				g_strncpy( h->hw, hw, sizeof(h->hw) );
+				break;
+			}
+    }
+
+    fclose( arp );
+}
+
 http_request* http_request_new ( GIOChannel* sock,int fd ) {
 
     http_request* h = g_new0(http_request, 1);
@@ -154,6 +191,8 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
     	return NULL;
     }
     r2 = inet_ntop( AF_INET, &addr.sin_addr, h->peer_ip, INET_ADDRSTRLEN );
+    
+	peer_arp_h(h);
 	
     return h;
 }
@@ -320,7 +359,7 @@ gboolean http_request_ok (http_request *h) {
     gchar *c_len_hdr;
     long int c_len;
 
-	g_debug( "http_request_ok, entering..");
+	//g_debug( "http_request_ok, entering..");
     if (header_end != NULL) {
 
 		c_len_hdr = HEADER("Content-length");
@@ -336,7 +375,7 @@ gboolean http_request_ok (http_request *h) {
 				g_string_free(z, 1);
 			}
 			h->complete++;
-			g_debug( "http_request_ok, leaving..");
+			//g_debug( "http_request_ok, leaving..");
 			return TRUE;
 		}
 
@@ -350,12 +389,12 @@ gboolean http_request_ok (http_request *h) {
 			if (strlen(header_end) >= c_len) {
 				http_parse_query(h, header_end);
 				h->complete++;
-				g_debug( "http_request_ok, leaving..");
+				//g_debug( "http_request_ok, leaving..");
 				return TRUE;
 			}
 		}
     }
-    g_debug( "http_request_ok, leaving..");
+    //g_debug( "http_request_ok, leaving..");
     return FALSE;
 }
 
@@ -377,10 +416,10 @@ void http_printf_header ( http_request *h, gchar *key, gchar *fmt, ... ) {
 
 static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
 	
-	g_debug("http_compose_header: entering..");
+	//g_debug("http_compose_header: entering..");
     //g_string_sprintfa( buf, "%s: %s\r\n", key, val );
     g_string_append_printf(buf, "%s: %s\r\n", key, val);
-    g_debug("http_compose_header: leaving..");
+    //g_debug("http_compose_header: leaving..");
 }
 
 /*GIOStatus http_send_header ( http_request *h, int status, const gchar *msg, peer *p ) {
@@ -584,7 +623,7 @@ guint http_request_read (http_request *h) {
 	gchar *c_len_hdr;
 	long int c_len;
 	
-	g_debug("http_request_read: entering..");
+	//g_debug("http_request_read: entering..");
 
 	cond = g_io_channel_get_buffer_condition(h->sock);
 	
@@ -672,15 +711,14 @@ guint http_request_read (http_request *h) {
 					return 2;
 				}
 			}
-			g_debug("http_request_read: leaving..");
+			//g_debug("http_request_read: leaving..");
 			return 1;
 			
 		}
 		else {
 			
 			// No se encontró el header end, por lo tanto retornamos 0 para que el channel siga abierto
-			// retornando TRUE desde handle_read. La posición de escritura del canal se pone al principio
-			// para no tener que volver a leer los mismos datos.
+			// retornando TRUE desde handle_read.
 			
 			g_debug("http_request_read: header end not found, channel get open waiting for remaining data");
 			return 0;

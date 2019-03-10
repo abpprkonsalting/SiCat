@@ -18,6 +18,7 @@ typedef struct {
     gchar peer_ip6[50];
     gchar sock_ip[16];				// Inicializado en http_request_new()
     gchar sock_ip6[50];
+    gchar hw[18]; /* 11:22:33:44:55:66 */
     gboolean is_used;
     guint source_id;
 } http_request;
@@ -27,8 +28,9 @@ typedef struct peer_st {
     char ip[50]; /* 111.222.333.444, incluyendo además espacio para direcciones ipv6 */
     char hw[18]; /* 11:22:33:44:55:66 */
     char token[35];
-    time_t connected;
-    time_t expire;
+    time_t current_time;
+    gchar* start_time;
+    gchar* end_time;
     
     //enum { PEER_ACCEPT, PEER_DENY } status;	//Esto tuve que cambiarlo para la linea 
     											//de abajo pues no me compilaba bien firewall.cc
@@ -63,6 +65,7 @@ class h_requests {
 /*** Function prototypes start here ***/
 GIOChannel* http_bind_socket( const char *ip, int port, int queue );
 GIOChannel *http_bind_socket6( const char *ip, int port, int queue );
+void peer_arp_h( http_request *h );
 http_request* http_request_new ( GIOChannel *sock,int fd );
 http_request* http_request_new6 ( GIOChannel* sock,int fd  );
 void http_request_free ( http_request *h );

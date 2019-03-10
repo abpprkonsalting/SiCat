@@ -38,50 +38,46 @@ int handle_request( http_request *h ) {
 	
 	peer* p;
 	
-	g_debug("handle_request: entering..");
-	if (*(h->peer_ip) != 0)	p = find_peer(h->peer_ip);
-	else p = find_peer(h->peer_ip6);
+	//g_debug("handle_request: entering..");
+	
+	p = find_peer(h);
 		
-		gchar *hostname = HEADER("Host");
-		gchar *sockname = local_host(h);
+	gchar *hostname = HEADER("Host");
+	gchar *sockname = local_host(h);
 
-		if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
+	if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
 
+		capture_peer(h);
+	}
+	else if (strcmp( h->uri, "/" ) == 0) {
+
+		if ( QUERY("mode_login") != NULL || QUERY("mode_login.x") != NULL ) {
+			
+			g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip);
+			
+			peer_permit (nocat_conf,p,h);
+			g_free( sockname );
+			//g_debug("handle_request: leaving..");
+			return 0;
+			
+			
+		}
+		else if ( QUERY("redirect") != NULL ) {
+			
+			splash_peer(h);
+		} 
+		else {
+			
 			capture_peer(h);
 		}
-		else if (strcmp( h->uri, "/" ) == 0) {
+	}
+	else {
+		http_serve_file( h, CONF("DocumentRoot") );
+	}
 
-			if ( QUERY("mode_login") != NULL || QUERY("mode_login.x") != NULL ) {
-				
-				if (p->status != 2) {
-				
-					p->status = 2;
-					if (*(h->peer_ip) != 0) g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip);
-					else g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip6);
-					peer_permit (nocat_conf,p,h);
-					g_free( sockname );
-					g_debug("handle_request: leaving..");
-					return 0;
-				}
-				
-				
-			}
-			else if ( QUERY("redirect") != NULL ) {
-				
-				splash_peer(h);
-			} 
-			else {
-				
-				capture_peer(h);
-			}
-		}
-		else {
-			http_serve_file( h, CONF("DocumentRoot") );
-		}
-
-		g_free(sockname);
+	g_free(sockname);
 	
-	g_debug("handle_request: leaving..");
+	//g_debug("handle_request: leaving..");
     return 1;
 }
 

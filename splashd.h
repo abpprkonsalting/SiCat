@@ -22,6 +22,7 @@ static int exit_signal = 0;
 static FILE* pid_file = NULL;
 gchar* macAddressFrom; 
 class comm_interface* wsk_comm_interface;
+gchar* table;
 
 class h_requests* requests;
 

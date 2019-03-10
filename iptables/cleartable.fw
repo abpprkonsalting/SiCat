@@ -1,0 +1,11 @@
+#!/bin/sh
+##
+#
+# cleartable.fw: limpia la tabla que se va a usar para atender a los clientes en el proximo periodo.
+#
+##
+
+table=$1
+
+iptables -t filter -F NoCat_Inbound$table
+iptables -t mangle -F NoCat$table

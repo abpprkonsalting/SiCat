@@ -35,21 +35,21 @@ gchar* local_host( http_request *h ) {
 
 /************* Permit and deny peers *************/
 
-peer* find_peer ( const char *ip) {
+peer* find_peer ( http_request *h) {
 	
     peer* p; 
     
-    p = (peer*) g_hash_table_lookup(peer_tab, ip);
+    p = (peer*) g_hash_table_lookup(peer_tab, h->hw);
     
     if (p == NULL) {
-		p = peer_new(nocat_conf, ip);
-		g_hash_table_insert(peer_tab, (gpointer) p->ip, p);
+		p = peer_new(nocat_conf, h);
+		g_hash_table_insert(peer_tab, (gpointer) p->hw, p);
 		
     }
     return p;
 }
 
-void accept_peer ( http_request *h ) {
+/*void accept_peer ( http_request *h ) {
 	
     peer *p;
 	
@@ -61,7 +61,7 @@ void accept_peer ( http_request *h ) {
     time(&last_connection);
 
     peer_permit( nocat_conf, p,NULL);
-}
+}*/
 
 void remove_peer ( peer *p ) {
 	
@@ -69,7 +69,7 @@ void remove_peer ( peer *p ) {
     peer_deny(nocat_conf, p);
 }
 
-gboolean check_peer_expire ( gchar *ip, peer *p, time_t *now ) {
+/*gboolean check_peer_expire ( gchar *ip, peer *p, time_t *now ) {
 	
 	if ((p->status == 0) || (p->status == 2)){
     	g_message("check_peer_expire: Checking peer %s for expire: %ld sec. remain",ip, p->expire - *now );
@@ -82,24 +82,19 @@ gboolean check_peer_expire ( gchar *ip, peer *p, time_t *now ) {
     	}
 	}
 	else return FALSE;
-}
+}*/
 
-void compare_token( gchar *ip, peer *p, struct mi_struct* fr){
+void compare_token( gchar *hw, peer *p, struct mi_struct* fr){
 	
 	if (!fr->encontrado){
 		if (strcmp(p->token,fr->trama->parameters->items[1]->valor) == 0){
 			
 			fr->encontrado = TRUE;			
 			if (strcmp(fr->trama->parameters->items[0]->valor,"true") == 0){
-				g_debug("compare_token: peer %s autenticado, permitiendolo por todo el timeout...",ip);
-				//peer_deny (nocat_conf, p);
+				g_debug("compare_token: peer %s autenticado, permitiendolo por todo el timeout...",hw);
 				
-				if (p->status == 2) {
+				peer_permit (nocat_conf, p,NULL);
 					
-					p->status = 0;
-					peer_permit (nocat_conf, p,NULL);
-					
-				}
 			}
 		}
 	}

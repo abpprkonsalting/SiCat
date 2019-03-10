@@ -11,6 +11,9 @@ action=$1
 mac=$2
 ip=$3
 class=$4
+start=$5
+end=$6
+table=$7
 
 if [ -z "$action" -o -z "$mac" -o -z "$ip" -o -z "$class" ]; then 
     echo Usage: $0 [permit\|deny] [MAC] [IP] [Class]
@@ -39,10 +42,10 @@ else
 fi
 
 # Mark inbound traffic in this node.
-iptables -t mangle $cmd NoCat -m mac --mac-source $mac -s $ip -j MARK --set-mark $mark
+iptables -t mangle $cmd NoCat$table -m mac --mac-source $mac -s $ip -m time --timestart $start --timestop $end --kerneltz -j MARK --set-mark $mark
 
 # Mark outbound traffic from this node.
-iptables -t filter $cmd NoCat_Inbound -d $ip -j ACCEPT
+iptables -t filter $cmd NoCat_Inbound$table -d $ip -m time --timestart $start --timestop $end --kerneltz -j ACCEPT
 
 #
 # Ende

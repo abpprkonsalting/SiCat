@@ -18,9 +18,9 @@ struct conf_t default_conf[] = {
     { (gchar*)"FirewallPath",	(gchar*)NC_FIREWALL_PATH },
     { (gchar*)"ResetCmd",	(gchar*)"$FirewallPath/initialize.fw" },
     { (gchar*)"ResetCmd6",	(gchar*)"$FirewallPath/initialize6.fw" },
-    { (gchar*)"PermitCmd",	(gchar*)"$FirewallPath/access.fw permit $MAC $IP $Class" },
+    { (gchar*)"PermitCmd",	(gchar*)"$FirewallPath/access.fw permit $MAC $IP $Class $Start $End $Table" },
     { (gchar*)"DenyCmd",	(gchar*)"$FirewallPath/access.fw deny $MAC $IP $Class" },
-    { (gchar*)"InitCmd",	(gchar*)"$FirewallPath/reset.fw" },
+    { (gchar*)"InitCmd",	(gchar*)"$FirewallPath/cleartable.fw $Table" },
     { (gchar*)"PermitCmd6",	(gchar*)"$FirewallPath/access6.fw permit $MAC $IP $Class" },
     { (gchar*)"DenyCmd6",	(gchar*)"$FirewallPath/access6.fw deny $MAC $IP $Class" },
 
@@ -43,6 +43,8 @@ struct conf_t default_conf[] = {
     { (gchar*)"SyslogIdent",	(gchar*)"SiCat" },
     { (gchar*)"llwidth",	(gchar*)"100" },
     { (gchar*)"lmem",	(gchar*)"0" },
+    { (gchar*)"memlimit",	(gchar*)"30000" },
+     
 
 	// Websocket defaults
 	{ (gchar*)"wsk_server_address",	(gchar*)"www.datalnet.com"},

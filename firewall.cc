@@ -16,6 +16,8 @@ extern class h_requests* requests;
 extern char **environ;
 extern gchar* macAddressFrom;
 extern class comm_interface* wsk_comm_interface;
+extern GHashTable* peer_tab;
+extern gchar* table;
 
 typedef struct {
     pid_t pid;
@@ -98,7 +100,17 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
 		g_hash_set( data, "IP",p->ip );
 		g_hash_set( data, "MAC",p->hw );
 		g_hash_set( data, (gchar*)"Class", (gchar*)"Public" );
+		//g_message(p->start_time);
+		//g_message(p->end_time);
+		g_hash_set( data, (gchar*)"Start", p->start_time );
+		g_hash_set( data, (gchar*)"End", p->end_time );
+		g_hash_set( data, "Table",table);
     }
+    else if (strcmp(action,"InitCmd") == 0){
+		
+		g_hash_set( data, "Table",table);
+		
+	}
     
     cmd = conf_string(data,action);
     cmd = parse_template(cmd, data);
@@ -156,62 +168,69 @@ int fw_init ( GHashTable *conf ) {
     return 0;
 }
 
-/******* peer.c routines **********/
-void peer_extend_timeout( GHashTable *conf, peer *p, time_t ext ) {
-    //p->expire = time(NULL) + conf_int( conf, "LoginTimeout" );
-    p->expire = time(NULL) + ext;
+int fw_resettable (GHashTable *conf) {
+	
+	fw_perform( (gchar*)"InitCmd", conf, NULL,NULL);
+    
+    return 0;
 }
 
-peer* peer_new ( GHashTable* conf, const gchar *ip ) {
+/******* peer.c routines **********/
+/*void peer_extend_timeout( GHashTable *conf, peer *p, time_t ext ) {
+    //p->expire = time(NULL) + conf_int( conf, "LoginTimeout" );
+    p->expire = time(NULL) + ext;
+}*/
+
+peer* peer_new ( GHashTable* conf, http_request *h ) {
 	
     peer* p = g_new0( peer, 1 );
-    //g_assert( p != NULL );
-    //g_assert( ip != NULL );
-    // Set IP address.
-    strncpy( p->ip, ip, sizeof(p->ip) );
+
+    // Set IP
+    strncpy( p->ip, h->peer_ip, sizeof(p->ip) );
+    
     // Set MAC address.
-    peer_arp( p );
+    strncpy( p->hw, h->hw, sizeof(p->hw) );
+    
     // Set connection time.
-    p->connected = time( NULL );
+    p->current_time = time(NULL);
+    p->start_time = g_new0(gchar,100);
+    p->end_time = g_new0(gchar,100);
     p->token[0] = '\0';
     p->status = 1;
-    peer_extend_timeout(conf, p,conf_int( conf, "LoginGrace" ));
+    //peer_extend_timeout(conf, p,conf_int( conf, "LoginGrace" ));
     
     return p;
 }
 
 void peer_free ( peer *p ) {
-    //g_assert( p != NULL );
+
+    g_free(p->start_time);
+    g_free(p->end_time);
     g_free(p);
 }
 
-int peer_permit ( GHashTable *conf, peer *p, http_request* h) {
+int peer_permit(GHashTable *conf, peer *p, http_request* h) {
     
-    time_t extension = 0;
-
-    if (p->status == 2) {
-    	
-    	if (*(h->peer_ip) != 0) {
-    	
-    		if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h) == 0)) return -1;
-    	
-		}
-		else {
-			
-			if (!(fw_perform( (gchar*)"PermitCmd6", conf, p,h) == 0)) return -1;
-			
-		}
-    	
-    	extension = conf_int( conf, "LoginGrace" );
-	}
-	else if (p->status == 0){
-		
-		//if (!(fw_perform( (gchar*)"PermitCmd", conf, p,NULL) == 0)) return -1;
-		
-		extension = conf_int( conf, "LoginTimeout" );
-	}
+	struct tm *loctime;
 	
-	peer_extend_timeout(conf, p, extension);
+	p->current_time = time(NULL);
+	loctime = localtime (&p->current_time);
+	
+	strftime (p->start_time, 100, "%H:%M:%S", loctime);
+	
+	if (h != NULL) p->current_time = p->current_time + CONFd("LoginGrace");
+	else p->current_time = p->current_time + CONFd("LoginTimeout");
+	
+	loctime = localtime (&p->current_time);
+	strftime (p->end_time, 100, "%H:%M:%S", loctime);
+	
+	if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h) == 0)) return -1;
+	
+	if (h == NULL){
+		g_hash_table_remove(peer_tab,p->hw);
+		peer_free (p);
+	}
+
     return 0;
 }
 
@@ -238,8 +257,6 @@ int peer_deny ( GHashTable *conf, peer *p ) {
 gchar* get_peer_token ( peer *p ) {
     char *n;
     int carry = 1;
-
-    //g_assert( p != NULL );
     
     if (strcmp(p->token,(char*)"\0") == 0){	// Esto está aquí porque si el token
     										// ya tiene un valor no es necesario

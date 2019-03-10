@@ -125,15 +125,7 @@ GHashTable *read_conf_file( const gchar *path ) {
 /*Modifications added by abp*/
 gchar *conf_string( GHashTable *conf, const gchar *key ){
 
-	/* abp: The line order was changed because it does not feels right to execute g_hash_table_lookup before asserting key and conf
-	gchar *val = g_hash_table_lookup( conf, key );
-	g_assert( key != NULL );
-	g_assert( conf != NULL );*/
-
 	gchar* val;
-	
-	//g_assert( key != NULL);
-	//g_assert( conf != NULL );
 
 	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
 	if (val == NULL) g_warning("conf_string: Missing required configuration directive '%s'", key);

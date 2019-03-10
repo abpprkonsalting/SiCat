@@ -4,7 +4,7 @@
 
 gchar* target_redirect ( http_request *h );
 gchar* local_host( http_request *h );
-peer *find_peer ( const gchar *ip);
+peer *find_peer (http_request *h);
 void accept_peer ( http_request *h );
 void remove_peer ( peer *p );
 gboolean check_peer_expire ( gchar *ip, peer *p, time_t *now );
