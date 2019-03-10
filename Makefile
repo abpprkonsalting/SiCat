@@ -3,12 +3,13 @@
 # variables
 
 #OBJECTS = splashd.o conf.o util.o linux.o gateway.o firewall.o http.o websck.o passive.o
-OBJECTS = splashd.o conf.o util.o linux.o gateway.o firewall.o http.o passive.o
+OBJECTS = splashd.o conf.o util.o linux.o gateway.o firewall.o http.o websck.o passive.o
 INCLUDES = -I. -I/usr/include/glib-1.2 -I/usr/lib/glib/include -I/usr/include
 WARNINGS = -Wall
 LIBRARYPATH = -L/usr/lib -L/lib
 #LIBRARIES = -lglib -lwebsockets
-LIBRARIES = -lglib -lwebsockets -lcrypt
+LIBRARIES = -lglib -lcrypt -lwebsockets
+#LIBRARIES = -lglib -lcrypt
 CC = g++
 EXECUTABLE = splashd
 CONFFILE = nocat.conf
@@ -56,8 +57,9 @@ firewall.o : firewall.cc firewall.h
 http.o : http.cc http.h util.cc util.h mime.h
 	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) http.cc
 	
-#websck.o : websck.h websck.cc gateway.h config.h
-#	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) websck.cc
+websck.o : websck.h websck.cc gateway.h config.h
+#	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) -Wno-pmf-conversions websck.cc
+	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) websck.cc
 
 passive.o : gateway.h passive.cc firewall.cc firewall.h conf.h util.h
 	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) passive.cc

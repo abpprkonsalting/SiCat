@@ -4,6 +4,7 @@
 # include "mime.h"
 
 struct conf_t default_conf[] = {
+	
     /***  Gateway server networking values. ***/
     { (gchar*)"GatewayAddr",	(gchar*)"0.0.0.0" },
     { (gchar*)"GatewayPort",	(gchar*)"5280" },
@@ -56,11 +57,13 @@ struct conf_t default_conf[] = {
 	{ (gchar*)"wsk_server_port",	(gchar*)"0"},
 	{ (gchar*)"wsk_path_on_server",	(gchar*)"/"},
 	//{ (gchar*)"wsk_server_hostname",	(gchar*)"0"},
-	//{ (gchar*)"wsk_origin_name",	(gchar*)"0"},
+	{ (gchar*)"wsk_origin_name",	(gchar*)"localhost"},
 	{ (gchar*)"wsk_protocol",	(gchar*)"0"},
 	{ (gchar*)"wsk_iface",	(gchar*)"0"},
 	{ (gchar*)"wsk_use_ssl",	(gchar*)"0"},
 	{ (gchar*)"ietf_version",	(gchar*)"-1"},
+	{ (gchar*)"wsk_time_out",	(gchar*)"600"},
+	{ (gchar*)"wsk_keep_alive",	(gchar*)"3600"},
 	
 
     /*** Trailing NULL ***/

@@ -1,29 +1,30 @@
 # define MAX_REQUEST_SIZE 100000L
 # define HEADER(x) (h->header == NULL ? NULL : \
-	(gchar *)g_hash_table_lookup(h->header, (x)))
+	(gchar*)g_hash_table_lookup(h->header, (x)))
 # define QUERY(x)  (h->query == NULL  ? NULL : \
 	(gchar *)g_hash_table_lookup(h->query, (x)))
 
 typedef struct {
-    gchar *uri;
-    gchar *method;
-    GHashTable *header;
-    GHashTable *query;
-    GHashTable *response;
-    GString *buffer;
+    gchar* uri;
+    gchar* method;
+    GHashTable* header;		// Llenado en http_request_read()
+    GHashTable* query;		// Llenado en http_request_ok()
+    GHashTable* response;
+    GString* buffer;		// Inicializado en http_request_new() a "", llenado en http_request_read
     gboolean complete;
-    GIOChannel *sock;
-    gchar peer_ip[16];
-    gchar sock_ip[16];
+    GIOChannel* sock;		// Inicializado en http_request_new()
+    gchar peer_ip[16];		// Inicializado en http_request_new()
+    gchar sock_ip[16];		// Inicializado en http_request_new()
+    gboolean authorized;
 } http_request;
 
 /*** Function prototypes start here ***/
-GIOChannel *http_bind_socket( const char *ip, int port, int queue );
-http_request *http_request_new ( GIOChannel *sock );
+GIOChannel* http_bind_socket( const char *ip, int port, int queue );
+http_request* http_request_new ( GIOChannel *sock );
 void http_request_free ( http_request *h );
-GHashTable *parse_query_string( gchar *query );
-GHashTable *http_parse_header (http_request *h, gchar *req);
-GHashTable *http_parse_query (http_request *h, gchar *post);
+GHashTable* parse_query_string( gchar *query );
+GHashTable* http_parse_header (http_request *h, gchar *req);
+GHashTable* http_parse_query (http_request *h, gchar *post);
 guint http_request_read (http_request *h);
 gboolean http_request_ok (http_request *h);
 void http_add_header ( http_request *h, const gchar *key, gchar *val );

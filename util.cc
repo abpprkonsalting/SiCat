@@ -77,10 +77,12 @@ GHashTable *g_hash_dup( GHashTable *src ) {
 }
 
 static void g_hash_as_string_each( gchar *k, gchar *v, GString *dest ) {
+	
     g_string_sprintfa( dest, "%s=%s\n", k, v );
 }
 
-GString *g_hash_as_string( GHashTable *h ) {
+GString* g_hash_as_string( GHashTable *h ) {
+	
     GString *dest = g_string_new("");
     g_assert( h != NULL );
     g_hash_table_foreach( h, (GHFunc) g_hash_as_string_each, dest );

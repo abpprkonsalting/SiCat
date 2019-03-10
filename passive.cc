@@ -6,15 +6,21 @@
 # include <sys/types.h>
 # include <sys/wait.h>
 # include <unistd.h>
-# include "gateway.h"
+//# include "gateway.h"
+# include "websck.h"
+
+extern class comm_interface* wsk_comm_interface;
 
 void capture_peer ( http_request *h, peer *p ) {
-    gchar *redir = target_redirect( h );
-    gchar *gw_addr = local_host( h );
-    GHashTable *args = g_hash_new();
-    GString *dest;
+	
+    /* Esta función lo que hace es enviar al usuario que se está conectando un http redirect
+     * para que vuelva a enviar la petición http pero esta vez dirigida al servidor auth */
+    
+    gchar* redir = target_redirect( h );
+    gchar* gw_addr = local_host( h );
+    GHashTable* args = g_hash_new();
+    GString* dest;
 
-	//g_message("entre en capture_peer de passive.c");
     g_hash_set( args, "redirect",   redir );
     g_hash_set( args, "token",	    get_peer_token(p) );
     g_hash_set( args, "mac",	    p->hw );
@@ -22,13 +28,14 @@ void capture_peer ( http_request *h, peer *p ) {
     g_hash_set( args, "gateway",    gw_addr );
 
     dest = build_url( CONF("AuthServiceURL"), args );
-    
-// Here should be checked that the websocket connection is open, if not then open it and wait
-// until it's so, because we could not send nothing to the server until the conditions are set
-// to receive the answer from it (the websocket open)
 
-
-    http_send_redirect( h, dest->str );
+	// Antes de enviarle la redirección al cliente debo garantizar que el websocket está abierto 
+	// para recibir la respuesta. Esto se hace enviando un comando NULL a través de la interface
+	// del websocket. Si el websocket está activo esto no hace nada, si está cerrado lo abre y 
+	// envía un comando init.
+	
+	wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
+    http_send_redirect(h, dest->str);
 
 //***********************************************************************************************
 	/*Added lines by abp*/
@@ -50,11 +57,13 @@ void capture_peer ( http_request *h, peer *p ) {
 }
 
 void logout_peer( http_request *h, peer *p ) {
+	
     remove_peer( p );
     http_send_redirect( h, CONF("LogoutURL") );
 }
 
-GHashTable *gpg_decrypt( char *ticket ) {
+GHashTable* gpg_decrypt( char* ticket ) {
+	
     int rfd[2], wfd[2], r;
     gchar *gpg, *msg;
     gchar **arg;
@@ -127,14 +136,15 @@ GHashTable *gpg_decrypt( char *ticket ) {
 }
 
 int verify_peer( http_request *h, peer *p ) {
-    GHashTable *msg;
+	
+    GHashTable* msg;
     gchar *action, *mode, *dest;
     gchar *ticket = QUERY("ticket");
     GString *m;
 
     if (ticket == NULL) {
-	g_warning("Invalid ticket from peer %s", p->ip);
-	return 0;
+		g_warning("Invalid ticket from peer %s", p->ip);
+		return 0;
     }
 
     msg = gpg_decrypt( QUERY("ticket") );
@@ -151,51 +161,82 @@ int verify_peer( http_request *h, peer *p ) {
 
     action = (gchar*) g_hash_table_lookup(msg, "Action");
     if (strcmp( action, "Permit" ) == 0) {
-	accept_peer( h );
+    	
+		accept_peer( h );
     } else if (strcmp( action, "Deny" ) == 0) {
-	remove_peer( p );
+    	
+		remove_peer( p );
     } else {
-	g_warning("Can't make sense of action %s!", action);
+    	
+		g_warning("Can't make sense of action %s!", action);
     }
 
 
     mode = (gchar*)g_hash_table_lookup(msg,"Mode");
     dest = (gchar*)g_hash_table_lookup(msg,"Redirect"); 
     if (strncmp(mode, "renew", 5) == 0) {
-	http_send_header( h, 304, "No Response" );
+		http_send_header( h, 304, "No Response" );
     } else {
-	http_send_redirect( h, dest );
+		http_send_redirect( h, dest );
     }
 
     g_hash_free( msg );
     return 1;
 }
 
-void handle_request( http_request *h ) {
-    gchar *hostname = HEADER("Host");
-    gchar *sockname = local_host(h);
-    peer *p = find_peer( h->peer_ip );
+/*void handle_request( http_request* h ) {
+	
+    gchar* hostname = HEADER("Host");
+    gchar* sockname = local_host(h);
+    peer* p = find_peer(h->peer_ip);
     int r;
 
-    g_assert( sockname != NULL );
-    g_assert( hostname != NULL );
+    g_assert(sockname != NULL);
+    g_assert(hostname != NULL);
 
     if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
-	capture_peer(h, p);
-    } else if (strcmp( h->uri, "/logout" ) == 0) {
-	// logout
-	logout_peer(h, p);
-    // } else if (strcmp( h->uri, "/status" ) == 0) {
-	// status
-	// display_status(h, p);
-    } else {
-	// user with a ticket
-	r = verify_peer(h, p);
-	if (!r)
-	    capture_peer(h, p);
+    	
+		capture_peer(h, p);
+    }
+    else if (strcmp( h->uri, "/logout" ) == 0) {
+    	
+		// logout
+		logout_peer(h, p);
+		// } else if (strcmp( h->uri, "/status" ) == 0) {
+		// status
+		// display_status(h, p);
+    } 
+    else {
+    	
+		// user with a ticket
+		r = verify_peer(h, p);
+		if (!r) capture_peer(h, p);
     }
 
-    g_free( sockname );
+    g_free(sockname);
+}*/
+
+void handle_request( http_request* h ) {
+	
+    gchar* hostname = HEADER("Host");
+    gchar* sockname = local_host(h);
+    
+    gboolean is_new = FALSE;
+    
+    peer* p = find_peer(h->peer_ip, &is_new );
+    
+    if ((hostname == NULL) || (strcmp( hostname, sockname ) != 0)
+    	 || is_new ) capture_peer(h,p);
+    
+    else if (strcmp( h->uri, "/logout" ) == 0) {
+    	
+		// logout
+		logout_peer(h, p);
+		// } else if (strcmp( h->uri, "/status" ) == 0) {
+		// status
+		// display_status(h, p);
+    }
+    g_free(sockname);
 }
 
 /*void initialize_driver (void) {

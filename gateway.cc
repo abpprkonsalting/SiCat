@@ -4,45 +4,51 @@
 # include <time.h>
 # include "gateway.h"
 
-GHashTable *peer_tab; 
+GHashTable* peer_tab; 
 unsigned long int total_connections = 0;
 time_t last_connection = 0;
 
-gchar *target_redirect ( http_request *h ) {
+gchar* target_redirect(http_request *h){
 	
     gchar *orig, *host   = HEADER("Host"); 
     
     if ( host != NULL ) {
-	orig = g_strdup_printf( "http://%s%s", HEADER("Host"), h->uri );
+		orig = g_strdup_printf( "http://%s%s", HEADER("Host"), h->uri );
     } else {
-	orig = CONF("HomePage");
+		orig = CONF("HomePage");
     }
 
     return orig;
 }
 
 
-gchar *local_host( http_request *h ) {
+gchar* local_host( http_request *h ) {
+	
     return g_strdup_printf( "%s:%s", h->sock_ip, CONF("GatewayPort") );
 }
 
 /************* Permit and deny peers *************/
 
-peer* find_peer ( const char *ip ) {
+peer* find_peer ( const char *ip, gboolean* new_peer ) {
+	
     peer* p; 
     
     p = (peer*) g_hash_table_lookup( peer_tab, ip );
+    
     if (p == NULL) {
 		p = peer_new( nocat_conf, ip );
 		g_hash_table_insert( peer_tab, (gpointer) p->ip, p );
+		*new_peer = TRUE;
     }
     return p;
 }
 
 void accept_peer ( http_request *h ) {
+	
     peer *p;
-   
-    p  = find_peer( h->peer_ip );
+	
+	gboolean no_importa;
+    p  = find_peer( h->peer_ip,&no_importa );
     g_message( "Accepting peer %s", p->ip );
 
     total_connections++;
@@ -52,6 +58,7 @@ void accept_peer ( http_request *h ) {
 }
 
 void remove_peer ( peer *p ) {
+	
     g_message( "Removing peer %s", p->ip );
     peer_deny( nocat_conf, p );
 }

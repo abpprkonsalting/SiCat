@@ -68,14 +68,14 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     return g_io_channel_unix_new( fd );
 }
 
-http_request *http_request_new ( GIOChannel *sock ) {
+http_request* http_request_new ( GIOChannel* sock ) {
 
-    http_request *h = g_new0(http_request, 1);
+    http_request* h = g_new0(http_request, 1);
     int fd = g_io_channel_unix_get_fd( sock );
     struct sockaddr_in addr;
     int n = sizeof(struct sockaddr_in);
     int r;
-    const gchar *r2;
+    const gchar* r2;
 
     g_assert( sock != NULL );
     g_assert( h    != NULL );
@@ -96,6 +96,7 @@ http_request *http_request_new ( GIOChannel *sock ) {
     g_assert( r2 != NULL );
 
     g_io_channel_ref( sock );
+    h->authorized = FALSE;
     return h;
 }
 
@@ -110,28 +111,28 @@ void http_request_free ( http_request *h ) {
     g_free( h );
 }
 
-GHashTable *parse_query_string( gchar *query ) {
+GHashTable* parse_query_string( gchar *query ) {
     GHashTable *data = g_hash_new();
     gchar **items, *key, *val;
     guint i;
 
     items = g_strsplit( query, "&", 0 );
     for ( i = 0; items[i] != NULL; i++ ) {
-	key = items[i];
-	if (key == NULL)
-	    break;
+		key = items[i];
+		if (key == NULL)
+			break;
 
-	val = strchr( key, '=' );
-	if (val != NULL)
-	    *(val++) = '\0';
-	else
-	    val = (gchar*)"1";
+		val = strchr( key, '=' );
+		if (val != NULL)
+			*(val++) = '\0';
+		else
+			val = (gchar*)"1";
 
-	key = url_decode( key );	
-	val = url_decode( val );	
-	g_hash_set( data, key, val );
-	g_free( key );
-	g_free( val );
+		key = url_decode( key );	
+		val = url_decode( val );	
+		g_hash_set( data, key, val );
+		g_free( key );
+		g_free( val );
     }
     g_strfreev(items);
 
@@ -139,7 +140,7 @@ GHashTable *parse_query_string( gchar *query ) {
 }
 
 /************* http header extraction function *******/
-GHashTable *http_parse_header (http_request *h, gchar *req) {
+GHashTable* http_parse_header (http_request *h, gchar *req) {
 
 /*This function extracts the http header from the request and fills the GHashTable structure
 "h->header" of the http_request structure, besides fills the string members h->method and h->uri*/
@@ -181,25 +182,32 @@ GHashTable *http_parse_header (http_request *h, gchar *req) {
     return head;
 }
 
-GHashTable *http_parse_query (http_request *h, gchar *post) {
-    gchar *q = NULL;
+GHashTable* http_parse_query (http_request* h, gchar* post) {
+	
+    gchar* q = NULL;
 
     g_assert( h != NULL );
 
     if (h->uri != NULL) {
-	// g_message( "Parsing query from %s", h->uri );
-	q = strchr( h->uri, '?' );
+    	
+		// g_message( "Parsing query from %s", h->uri );
+		q = strchr( h->uri, '?' );
     }
 
     if (post != NULL) {
-	h->query = parse_query_string( post );
+    	
+		h->query = parse_query_string( post );
+	
     } else if (q != NULL) {
-	h->query = parse_query_string( q + 1 );
+    	
+		h->query = parse_query_string( q + 1 );
     } else {
-	h->query = NULL;
+    	
+		h->query = NULL;
     }
 
     if (q != NULL)
+    
 	*q = '\0'; /* remove the query string from the URI */
 
     return h->query;
@@ -277,41 +285,46 @@ guint http_request_read (http_request *h) {
 }
 
 gboolean http_request_ok (http_request *h) {
+	
     gchar *header_end = strstr( h->buffer->str, "\r\n\r\n" );
     gchar *c_len_hdr;
     guint c_len;
 
     if (header_end != NULL) {
-	//g_warning( "inside http_request_ok: header_end found" );
+    	
+		//g_warning( "inside http_request_ok: header_end found" );
 
-	c_len_hdr = HEADER("Content-length");
-	if (c_len_hdr == NULL) {
-	    GString *z;
-	    http_parse_query( h, NULL );
-	    if (h->query) {
-		z = g_hash_as_string( h->query );
-		g_debug( "Query: %s", z->str );
-		g_string_free(z, 1);
-	    }
-	    h->complete++;
-	    return TRUE;
-	}
+		c_len_hdr = HEADER("Content-length");
+		
+		if (c_len_hdr == NULL) {
+			
+			GString *z;
+			http_parse_query( h, NULL );
+			if (h->query) {
+				
+				z = g_hash_as_string( h->query );
+				g_debug( "Query: %s", z->str );
+				g_string_free(z, 1);
+			}
+			h->complete++;
+			return TRUE;
+		}
 
-	header_end += sizeof("\r\n\r\n") - 1; // *header_end == '\r'
-	c_len = atoi( c_len_hdr );
-	if (strlen( header_end ) >= c_len) {
-	    http_parse_query( h, header_end );
-	    h->complete++;
-	    return TRUE;
-	}
+		header_end += sizeof("\r\n\r\n") - 1; // *header_end == '\r'
+		c_len = atoi( c_len_hdr );
+		if (strlen( header_end ) >= c_len) {
+			http_parse_query( h, header_end );
+			h->complete++;
+			return TRUE;
+		}
     }
     g_warning( "inside http_request_ok: header_end not found" );
     return FALSE;
 }
 
 void http_add_header ( http_request *h, const gchar *key, gchar *val ) {
-    if ( h->response == NULL )
-	h->response = g_hash_new();
+	
+    if ( h->response == NULL ) h->response = g_hash_new();
     g_hash_set( h->response, key, val );
 }
 
@@ -330,6 +343,7 @@ static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
 }
 
 GIOError http_send_header ( http_request *h, int status, const gchar *msg ) {
+	
     GString *hdr = g_string_new("");
     GIOError r;
     int n;
@@ -339,11 +353,13 @@ GIOError http_send_header ( http_request *h, int status, const gchar *msg ) {
     g_string_append( hdr, "\r\n" );
     g_debug("Header out: %s", hdr->str);
     r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
+    g_message("sent header: %s",hdr->str);
     g_string_free( hdr, 1 );
     return r;
 }
 
 void http_send_redirect( http_request *h, gchar *dest ) {
+	
     http_add_header ( h, "Location", dest );
     http_send_header( h, 302, "Moved" );
 }

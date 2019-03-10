@@ -27,6 +27,7 @@ static void fw_exec_add_env ( gchar *key, gchar *val, GPtrArray *env ) {
 }
 
 static int fw_exec( fw_action *act, GHashTable *conf ) {
+	
     GHashTable *data;
     GPtrArray *env;
     gchar *cmd, **arg, **n;
@@ -93,8 +94,9 @@ gboolean fw_cleanup( fw_action *act ) {
     return FALSE;
 }
 
-int fw_perform( gchar *action, GHashTable *conf, peer *p ) {
-    fw_action *act = g_new( fw_action, 1 );
+int fw_perform(gchar* action,GHashTable* conf,peer* p ) {
+	
+    fw_action* act = g_new( fw_action, 1 );
     pid_t pid;
 
     act->cmd = action;
@@ -104,8 +106,7 @@ int fw_perform( gchar *action, GHashTable *conf, peer *p ) {
     if (pid == -1)
 	g_error( "Can't fork: %m" );
     
-    if (! pid)
-	fw_exec( act, conf );
+    if (! pid) fw_exec( act, conf );
 
     act->pid    = pid;
     g_idle_add( (GSourceFunc) fw_cleanup, act );
@@ -121,8 +122,9 @@ void peer_extend_timeout( GHashTable *conf, peer *p ) {
     p->expire = time(NULL) + conf_int( conf, "LoginTimeout" );
 }
 
-peer *peer_new ( GHashTable *conf, const gchar *ip ) {
-    peer *p = g_new0( peer, 1 );
+peer* peer_new ( GHashTable* conf, const gchar *ip ) {
+	
+    peer* p = g_new0( peer, 1 );
     g_assert( p != NULL );
     g_assert( ip != NULL );
     // Set IP address.
@@ -144,26 +146,29 @@ void peer_free ( peer *p ) {
 }
 
 int peer_permit ( GHashTable *conf, peer *p ) {
+	
     g_assert( p != NULL );
     if (p->status != 0) {
-	if (fw_perform( (gchar*)"PermitCmd", conf, p ) == 0) {
-	    p->status = 0;
-	} else {
-	    return -1;
-	}
+		if (fw_perform( (gchar*)"PermitCmd", conf, p ) == 0) {
+			p->status = 0;
+		} else {
+			return -1;
+		}
     }
     peer_extend_timeout(conf, p);
     return 0;
 }
 
 int peer_deny ( GHashTable *conf, peer *p ) {
+	
     g_assert( p != NULL );
     if (p->status != 1 ) {
-	if (fw_perform( (gchar*)"DenyCmd", conf, p ) == 0) {
-	    p->status = 1;
-	} else {
-	    return -1;
-	}
+    	
+		if (fw_perform( (gchar*)"DenyCmd", conf, p ) == 0) {
+			p->status = 1;
+		} else {
+			return -1;
+		}
     }
     return 0;
 }
