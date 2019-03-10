@@ -39,28 +39,7 @@ int handle_request( http_request *h ) {
 	peer* p;
 	if (*(h->peer_ip) != 0)	p = find_peer(h->peer_ip);
 	else p = find_peer(h->peer_ip6);
-	
-	/*if (p->status != 1) {
 		
-		// El peer ya está aceptado, por lo tanto esto es un sombie que quedó colgado.
-		
-		GString *hdr = g_string_new("");
-    	GIOError r;
-    	int n;
-    	
-    	g_string_append_printf(hdr, "HTTP/1.1 %d %s\r\n%s%s%s\r\n\r\n", 302,"Moved","Location: http://",HEADER("Host"),h->uri_orig);
-    	g_debug("handle_request: redirect sent to sombie: ,%s",hdr->str);
-    	
-    	r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
-    
-    	if (*(h->sock_ip) != 0) g_debug ("sent header: %s to peer %s",hdr->str, h->peer_ip);
-    	else g_debug ("sent header: %s to peer %s",hdr->str, h->peer_ip6);
-    
-    	g_string_free( hdr, 1 );
-    	
-	}
-	else {*/
-	
 		gchar *hostname = HEADER("Host");
 		gchar *sockname = local_host(h);
 
@@ -107,7 +86,7 @@ void splash_peer ( http_request *h ) {
 	
     GHashTable *data1;
     gchar *path = NULL, *file, *action1, *host;
-    GIOError r;
+    GIOStatus r;
    
     host = local_host( h );
     action1 = g_strdup_printf("http://%s/", host);

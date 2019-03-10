@@ -9,8 +9,9 @@ gchar *g_strncpy( gchar *dest, const gchar *src, guint n ) {
     return dest;
 }
 
-GHashTable* g_hash_new (void) {
-    return g_hash_table_new( g_str_hash, g_str_equal );
+GHashTable* g_hash_new () {
+	
+	return g_hash_table_new( g_str_hash, g_str_equal );
 }
 
 static gboolean g_hash_free_each ( gpointer key, gpointer val, gpointer data ) {
@@ -282,54 +283,3 @@ gchar *md5_crypt( const gchar *src, gchar *salt ) {
 }
 
 //# endif /* HAVE_LIBCRYPT */
-
-
-gboolean get_address_from_name(gchar* name){
-	
-	/*gchar* var;
-	gboolean is_IP = TRUE;
-	struct sockaddr_in addr;
-	
-	//struct hostent * host_info;
-	
-	//Chequear que la variable no sea ya una ip
-	
-	if ( inet_aton(name, addr.sin_addr) != 0 ) return name;*/
-	return TRUE;
-}
-
-/*loguear_mensaje(unsigned int level, const gchar* message){
-	
-	size_t message_len = 0;
-    div_t result;
-    unsigned int t = 1;
-	gchar* message_part = NULL;
-	unsigned int width = (unsigned int) CONFd("llwidth");
-	
-	message_len = strlen(message);
-	
-	if ( message_len > width ) {
-		
-		result = div(message_len,width);
-		t = result.quot;
-		if (result.rem > 0) t = t + 1;
-	}
-	
-	for (unsigned int i = 0; i < t; i++){
-		
-		message_part = g_new0(gchar,width + 2);
-		strncpy (message_part,message+(i*width),width);
-		
-		switch (level){
-			
-			case 0:	    g_message(message_part);	break;
-			case 1:	    g_warning(message_part);	break;
-			case 2:	    g_critical(message_part);	break;
-			case 3:	    g_error(message_part);	    break;
-			case 4:	    g_debug(message_part);	    break;
-			default:	g_message(message_part);	break;
-		}
-		
-		g_free(message_part);
-	}
-}*/

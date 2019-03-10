@@ -23,10 +23,9 @@ typedef struct {
 
 typedef struct peer_st {
 	
-    char ip[50]; /* 111.222.333.444, incluyendo además espacio para direcciones ipv6 */
-    char hw[18]; /* 11:22:33:44:55:66 */
-    char token[35];
-    char *request;
+    char* ip; //[50]; /* 111.222.333.444, incluyendo además espacio para direcciones ipv6 */
+    char* hw; //[18]; /* 11:22:33:44:55:66 */
+    char* token; //[35];
     time_t connected;
     time_t expire;
     
@@ -73,7 +72,7 @@ guint http_request_read (http_request *h);
 gboolean http_request_ok (http_request *h);
 void http_add_header ( http_request *h, const gchar *key, gchar *val );
 void http_printf_header ( http_request *h, gchar *key, gchar *fmt, ... );
-GIOError http_send_header ( http_request *h, int status, const gchar *msg, peer *p );
+GIOStatus http_send_header ( http_request *h, int status, const gchar *msg, peer *p );
 void http_send_redirect( http_request *h, gchar *dest, peer *p );
 
 gchar *http_fix_path (const gchar *uri, const gchar *docroot);
@@ -81,6 +80,6 @@ gchar *http_mime_type (const gchar *path);
 int http_open_file (const gchar *path, int *status);
 ssize_t http_sendfile ( http_request *h, int in_fd );
 int http_serve_file ( http_request *h, const gchar *docroot );
-GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data );
+GIOStatus http_serve_template ( http_request *h, gchar *file, GHashTable *data );
 
 gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h );

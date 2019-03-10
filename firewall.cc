@@ -43,7 +43,14 @@ gboolean redirecciona_delayed (fw_action *act ){
 
 	dest = build_url( CONF("AuthServiceURL"), args );
 
-	if (CONFd("usewsk")) wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
+	if (CONFd("usewsk")) wsk_comm_interface->wsk_restart();
+	
+	// Aquí debo buscar un mecanismo que espere porque el websocket esté establecido antes de mandarle
+	// el redirect al usuario. Mientras se espera porque el websocket esté establecido se enviará una
+	// página de espera al usuario. Este mecanísmo llevará un time-out, el cual cuando esté cumplido
+	// le mostrará una página del error al usuario informándole que hay un error en la conexion con el
+	// servidor del sistema y por lo tanto debe avisar a la administración del sistema para resolverlo
+	// etc..
 	
 	http_send_redirect(act->h, dest->str,act->p);
 
@@ -115,7 +122,7 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
     if (g_spawn_async(NULL,arg,(char **)env->pdata,(GSpawnFlags)(G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_LEAVE_DESCRIPTORS_OPEN),
     							NULL,NULL,&(act->pid),&gerror))
     
-    			g_child_watch_add (act->pid, (GChildWatchFunc)redirecciona,act);
+    			g_child_watch_add(act->pid, (GChildWatchFunc)redirecciona,act);
     			
     else {
     	
@@ -158,15 +165,15 @@ void peer_extend_timeout( GHashTable *conf, peer *p, time_t ext ) {
 peer* peer_new ( GHashTable* conf, const gchar *ip ) {
 	
     peer* p = g_new0( peer, 1 );
-    //g_assert( p != NULL );
-    //g_assert( ip != NULL );
+    p->ip = g_new0(char,50);
+    p->hw = g_new0(char,18);
+    p->token = g_new0(char,35);
     // Set IP address.
     strncpy( p->ip, ip, sizeof(p->ip) );
     // Set MAC address.
     peer_arp( p );
     // Set connection time.
     p->connected = time( NULL );
-    p->token[0] = '\0';
     p->status = 1;
     peer_extend_timeout(conf, p,conf_int( conf, "LoginGrace" ));
     
@@ -174,8 +181,10 @@ peer* peer_new ( GHashTable* conf, const gchar *ip ) {
 }
 
 void peer_free ( peer *p ) {
-    //g_assert( p != NULL );
-    if (p->request != NULL) g_free( p->request );
+
+    g_free(p->ip);
+    g_free(p->hw);
+    g_free(p->token);
     g_free(p);
 }
 
@@ -215,7 +224,7 @@ int peer_deny ( GHashTable *conf, peer *p ) {
     //g_message("peer status = %d",p->status);
     if (p->status != 1 ) {
     	
-		if (fw_perform( (gchar*)"DenyCmd", conf, p,NULL) == 0) {
+		if (fw_perform((gchar*)"DenyCmd", conf, p,NULL) == 0) {
 				
 				peer_free(p);
 				//p->status = 1;

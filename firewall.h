@@ -5,6 +5,8 @@
 # include "util.h"
 # include "http.h"
 
+extern GHashTable *nocat_conf;
+
 /*** Function prototypes start here ***/
 peer *peer_new ( GHashTable *conf, const gchar *ip );
 void peer_free ( peer *p );

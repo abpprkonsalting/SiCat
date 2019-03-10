@@ -15,8 +15,8 @@ GHashTable *nocat_conf = NULL;
 GHashTable *parse_conf_line( GHashTable *out, gchar *line ) {
     gchar *key, *val;
 
-    g_assert( out  != NULL );
-    g_assert( line != NULL );
+    //g_assert( out  != NULL );
+    //g_assert( line != NULL );
 
     // Format is: \s*(?:#.*|(\w+)\s+(.*)\s*)
     key = g_strchug(line);	    // Strip leading whitespace.
@@ -58,38 +58,6 @@ GHashTable *set_conf_defaults( GHashTable *conf, struct conf_t *def ) {
     g_hash_set( conf, "GatewayStartTime", ctime(&now) );
 
     return conf; 
-}
-
-gboolean solve_dns( GHashTable *conf,gchar *key ){
-	
-	gchar *addr;
-	
-	addr = (gchar*) g_hash_table_lookup(conf, key);
-	
-	if (addr != NULL){
-		
-		gchar* new_addr = g_new0(gchar,strlen(addr) + 2);
-		memcpy(new_addr,addr,strlen(addr));
-		
-		if (!(get_address_from_name(new_addr))){
-			
-			g_free(new_addr);
-			return false;
-			
-		} else {
-
-			g_hash_table_replace(conf,(gpointer)key,(gpointer)addr);
-			return true;
-			
-		}
-		
-	}
-	else {
-		
-		g_message("solve_dns: the sicat.conf variable %s could not be NULL, aborting..",key);
-		return false;
-	}
-	
 }
 
 void set_network_defaults( GHashTable *conf ) {

@@ -376,22 +376,30 @@ static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
     g_string_append_printf(buf, "%s: %s\r\n", key, val);
 }
 
-GIOError http_send_header ( http_request *h, int status, const gchar *msg, peer *p ) {
+GIOStatus http_send_header ( http_request *h, int status, const gchar *msg, peer *p ) {
 	
     GString *hdr = g_string_new("");
-    GIOError r;
-    int n;
+    GIOStatus r;
+    guint n;
+    GError* gerror = NULL;
 
     g_string_sprintfa( hdr, "HTTP/1.1 %d %s\r\n", status, msg );
     g_hash_table_foreach( h->response, (GHFunc) http_compose_header, hdr );
     
     g_string_append( hdr, "\r\n" );
     
-    r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
+    r = g_io_channel_write_chars(h->sock, hdr->str, hdr->len,&n,&gerror);
     
-    if (*(h->sock_ip) != 0) g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip);
-    else g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip6);
+    if (gerror != NULL) {
+				
+		g_warning("http_send_header: g_io_channel_write_chars error: %s",gerror->message);
+		g_warning("http_send_header: could't sent header= %s to peer %s",hdr->str, h->peer_ip);
+	}
+	else {
     
+		if (*(h->sock_ip) != 0) g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip);
+		else g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip6);
+	}
     g_string_free( hdr, 1 );
     
     return r;
@@ -427,7 +435,7 @@ gchar *http_mime_type (const gchar *path) {
     guint i;
     gchar *ext;
 
-    ext = strrchr( path, '.' );
+    ext =  (gchar*)strrchr( path,'.' );
     if ( ext++ != NULL )
 	for (i = 0; mime_types[i].ext != NULL; i++) {
 	    // g_warning( "http_mime_type: %s vs %s", ext, mime_types[i].ext );
@@ -479,11 +487,12 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     return ( fd != -1 );
 }
 
-GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 ) {
+GIOStatus http_serve_template ( http_request *h, gchar *file, GHashTable *data1 ) {
 	
     gchar *form;
     guint n;
-    GIOError r;
+    GIOStatus r;
+    GError* gerror = NULL;
 
     form = parse_template( file, data1 );
     n = strlen(form);
@@ -491,15 +500,21 @@ GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 )
     http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
     http_send_header( h, 200, "OK", NULL);
 
-    r = g_io_channel_write( h->sock, form, n, &n );
+    //r = g_io_channel_write( h->sock, form, n, &n );
+    r = g_io_channel_write_chars(h->sock, form, n,&n,&gerror);
+    
+    if (gerror != NULL) {
+				
+		g_warning("http_serve_template: g_io_channel_write_chars error: %s",gerror->message);
+		g_warning("http_serve_template: could't sent template to peer %s", h->peer_ip);
+	}
 
-    g_free( form );
-
-    if ( r != G_IO_ERROR_NONE ) {
+    if (r != G_IO_STATUS_NORMAL) {
     	
     	if (*(h->peer_ip) != 0)	g_warning( "http_serve_template: Serving template to %s failed: %m", h->peer_ip );
     	else g_warning( "http_serve_template: Serving template to %s failed: %m", h->peer_ip6 );
     }
+	g_free(form);
 
     return r;
 }

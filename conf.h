@@ -12,7 +12,7 @@ struct conf_t {
 };
 
 extern struct conf_t default_conf[];
-extern GHashTable *nocat_conf;
+//extern GHashTable *nocat_conf;
 
 /*** Function prototypes start here ***/
 GHashTable *parse_conf_line( GHashTable *out, gchar *line );

@@ -3,7 +3,7 @@
 # include <string.h>
 # include <time.h>
 # include <libwebsockets.h>
-//# include <private-libwebsockets.h>
+#include <gio/gio.h>
 
 //# include "gateway.h"
 
@@ -13,12 +13,17 @@
 
 enum STATUSES {
 	WSK_DISCONNECTED,
+	WSK_WAITING_DNS,
 	WSK_WAITING_CONFIRM,
 	WSK_CLIENT_ESTABLISHED,
 	WSK_ERROR,
 	WSK_CLOSED,
 	WSK_IDDLE
 };
+
+gboolean is_IP(gchar* name);
+
+//void c_ares_callback(void *arg, int status,int timeouts, struct hostent *hostee);
 
 void parse_status(int status, char* status_char);
 
@@ -141,6 +146,8 @@ class comm_interface {
 	
 	struct libwebsocket_protocols protocols[2];
 	
+	gchar* wsk_server_IP;
+	
 	void wsk_create_context(void);
 	void wsk_client_connect (void);
 	
@@ -148,6 +155,8 @@ class comm_interface {
 	
 	class received_messages_queu* reception_queu;
 	class send_messages_queu* sender_queu;
+	
+	GResolver * myResolver;
 
 	comm_interface();
 	~comm_interface();
@@ -159,7 +168,7 @@ class comm_interface {
 	time_t get_wsk_time_out();
 	time_t get_wsk_keep_alive();
 
-	void wsk_set_status(enum STATUSES status);
+	void wsk_set_status(enum STATUSES status,const char* function);
 	enum STATUSES get_status();
 	void reset();
 	bool is_init();
@@ -167,6 +176,11 @@ class comm_interface {
 	void set_init();
 	
 	int wsk_send_command(char* comando, struct params* parameters_in, struct data* datos_in);
+	int solve_dns(GHashTable *conf);
+	void set_wsk_server_IP(gchar* server_IP);
+	int wsk_initialize();
+	int wsk_create();
+	void wsk_restart();
 	
 	
 };

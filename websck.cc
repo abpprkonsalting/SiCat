@@ -1,14 +1,61 @@
 //#include "websck.h"
 # include "gateway.h"
+# include <netdb.h>
 
 extern GHashTable* peer_tab;
+extern GHashTable *nocat_conf;
 extern class comm_interface* wsk_comm_interface;
-extern gchar* macAddressFrom; 
+extern gchar* macAddressFrom;
+
+gboolean is_IP(gchar* name){
+	
+	unsigned int res;
+	struct sockaddr_in addr;
+	//struct sockaddr_in6 addr6;
+	
+	res = inet_pton(AF_INET, name, &(addr.sin_addr));
+	//res = inet_pton(AF_INET6, name, &(addr6.sin6_addr));
+	
+	if (res == 1) return TRUE;
+	else return FALSE;
+}
+
+void dns_callback (GObject *source_object,GAsyncResult *res,gpointer user_data){
+	
+	GList * mylist;
+	gchar* address;
+	int x;
+	GError* gerror = NULL;
+	
+	mylist = g_resolver_lookup_by_name_finish((GResolver *)source_object,res,&gerror);
+	
+	if (gerror != NULL) {
+				
+		g_warning("dns_callback: g_resolver_lookup_by_name_finish error: %s",gerror->message);
+		wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
+		return;
+	}
+	
+	if (mylist != NULL){
+		
+		address = g_inet_address_to_string((GInetAddress *)mylist->data);
+		wsk_comm_interface->set_wsk_server_IP(address);
+		g_free(address);
+		x = wsk_comm_interface->wsk_create();
+		if (x == -1){
+				
+			g_warning("dns_callback: websocket initialization error, retrying...");
+			wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
+		}
+	}
+	else {
+		g_warning("dns_callback: g_resolver_lookup_by_name_finish error ..");
+		wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
+	}
+}
 
 int callback_authentication(struct libwebsocket_context* thi, struct libwebsocket* wsi, enum libwebsocket_callback_reasons reason, 
 			void *user, void *in, size_t len) {
- 
- 	int x;
  	
 	switch (reason) {
 		
@@ -16,7 +63,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 			g_warning("wsk callback_authentication: LWS_CALLBACK_CLIENT_CONNECTION_ERROR");
 			
-			wsk_comm_interface->wsk_set_status(WSK_ERROR);
+			wsk_comm_interface->wsk_set_status(WSK_ERROR,"callback_authentication");
 			
 			break;
 			
@@ -29,7 +76,8 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 
 		 	g_debug("wsk callback_authentication: LWS_CALLBACK_CLIENT_ESTABLISHED");
 			
-			wsk_comm_interface->wsk_set_status(WSK_CLIENT_ESTABLISHED);
+			wsk_comm_interface->clear_init();
+			wsk_comm_interface->wsk_set_status(WSK_CLIENT_ESTABLISHED,"callback_authentication");
 		 	
 			break;
 			
@@ -37,7 +85,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			 
 			g_debug("wsk callback_authentication: LWS_CALLBACK_CLOSED");
 						
-			wsk_comm_interface->wsk_set_status(WSK_CLOSED);
+			wsk_comm_interface->wsk_set_status(WSK_CLOSED,"callback_authentication");
 			return -1;
  
 			break; 
@@ -51,7 +99,8 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 			//if (libwebsocket_is_final_fragment(wsi)) g_message("la trama llegó completa");
 			
-			x = strlen((char*)in);
+			//int x;
+			//x = strlen((char*)in);
 			
 			//g_message("contados: %d caracteres",x);
 			
@@ -156,7 +205,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 		case LWS_CALLBACK_PROTOCOL_DESTROY:
 		
 			g_debug("wsk callback_authentication: LWS_CALLBACK_PROTOCOL_DESTROY");
-			wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED);
+			wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"callback_authentication");
 			break;
 				
 		default:
@@ -170,8 +219,6 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 }
 
 gboolean call_libwebsocket_service(void* dummy){
-	
-	int r;
 	
 	switch (wsk_comm_interface->get_status()){
 		
@@ -190,7 +237,7 @@ gboolean call_libwebsocket_service(void* dummy){
 			// wsk_keep_alive para volver a intentar la conexión. También tengo que avisar a la administración del 
 			// error.
 			
-		
+			wsk_comm_interface->set_init();
 			wsk_comm_interface->reset();
 			break;
 			
@@ -207,7 +254,7 @@ gboolean call_libwebsocket_service(void* dummy){
 				if (difftime(time(NULL),wsk_comm_interface->get_last_access_time())
 					 > wsk_comm_interface->get_wsk_time_out()){
 						
-					 wsk_comm_interface->wsk_set_status(WSK_IDDLE);
+					 wsk_comm_interface->wsk_set_status(WSK_IDDLE,"call_libwebsocket_service");
 					 libwebsocket_callback_on_writable(wsk_comm_interface->get_context(),
 														wsk_comm_interface->get_wsi());
 				}
@@ -225,25 +272,15 @@ gboolean call_libwebsocket_service(void* dummy){
 					return TRUE;	
 				}
 			}
+			
+			wsk_comm_interface->wsk_initialize();
+			
+			return TRUE;
+		
+		case WSK_WAITING_DNS:
 
-			r = wsk_comm_interface->wsk_send_command(NULL, NULL, NULL);
-			
-			if (r == -1){
-				
-				wsk_comm_interface->set_init();
-				
-				// Aquí debo avisar a la administración del sistema de que ha habido un probrema en el
-				// establecimiento del wsk.
-				
-				//g_message("websocket initialization error, retrying...");
-				g_warning("call_libwebsocket_service: websocket initialization error, retrying...");
-				
-				return TRUE;
-			}
-			else wsk_comm_interface->clear_init(); 
-			
-			break;
-			
+			return TRUE;
+		
 		default:
 			break;
 		
@@ -272,7 +309,7 @@ unsigned int extract_value (const char* token,char* begin,bool* corre){
 			memcpy(tempo,ptr_begin,ptr_end - ptr_begin);
 		 }
 		else return 0; 
-		resultado = (unsigned int) strtol(tempo,NULL,NULL);
+		resultado = (unsigned int) strtol(tempo,NULL,0);
 		free(tempo);
 		*corre = TRUE;
 	}
@@ -311,25 +348,30 @@ void parse_status(int status, char* status_char){
 		
 		case 1:
 		
-			strcpy(status_char,(char*)"WSK_WAITING_CONFIRM");
+			strcpy(status_char,(char*)"WSK_WAITING_DNS");
 			break;
 			
 		case 2:
 		
-			strcpy(status_char,(char*)"WSK_CLIENT_ESTABLISHED");
+			strcpy(status_char,(char*)"WSK_WAITING_CONFIRM");
 			break;
 
 		case 3:
 		
-			strcpy(status_char,(char*)"WSK_ERROR");
+			strcpy(status_char,(char*)"WSK_CLIENT_ESTABLISHED");
 			break;
 			
 		case 4:
 		
-			strcpy(status_char,(char*)"WSK_CLOSED");
+			strcpy(status_char,(char*)"WSK_ERROR");
 			break;
 			
 		case 5:
+		
+			strcpy(status_char,(char*)"WSK_CLOSED");
+			break;
+			
+		case 6:
 		
 			strcpy(status_char,(char*)"WSK_IDDLE");
 			break;
@@ -1053,6 +1095,8 @@ comm_interface::comm_interface(){
 	
 	wsi = NULL;
 	
+	wsk_server_IP = NULL;
+	
 	reception_queu = new class received_messages_queu;
 	sender_queu = new class send_messages_queu;
 	
@@ -1075,6 +1119,8 @@ comm_interface::comm_interface(){
 	
 	wsk_status = WSK_DISCONNECTED;
 	init = TRUE;
+	g_type_init();
+	myResolver = g_resolver_get_default();
 	g_timeout_add( 1000, (GSourceFunc) call_libwebsocket_service,NULL);
 	
 }
@@ -1161,9 +1207,9 @@ void comm_interface::wsk_client_connect (void){
 	strcat(wsk_url,"?macAddressFrom=");
 	strcat(wsk_url,macAddressFrom);
 	
-	//g_message(wsk_url);
+	//g_message(wsk_url);	
 			
-	wsi = libwebsocket_client_connect(context, CONF("wsk_server_address"), CONFd("wsk_server_port"),
+	wsi = libwebsocket_client_connect(context, wsk_server_IP, CONFd("wsk_server_port"),
 			CONFd("wsk_use_ssl"),wsk_url,CONF("wsk_server_hostname"),CONF("wsk_origin_name"),
 			protocols[CONFd("wsk_protocol")].name, CONFd("ietf_version"));
 	
@@ -1174,34 +1220,6 @@ void comm_interface::wsk_client_connect (void){
 
 int comm_interface::wsk_send_command(char* comando, struct params* parameters_in, struct data* datos_in){
 	
-	if (context == NULL){
-	
-		g_message("comm_interface::wsk_send_command: Creating the libwebsocket context..");
-	
-		wsk_create_context();
-
-		if (context == NULL) {
-
-			g_warning("comm_interface::wsk_send_command: Could not create the websocket context, exiting..");
-			return -1;
-		}
-		
-		wsk_client_connect ();
-
-		if (wsi == NULL) {
-
-			g_warning("comm_interface::wsk_send_command: libwebsocket client connect failed...");
-			return -1;
-		}
-		else {
-			
-			wsk_status = WSK_WAITING_CONFIRM;
-			set_last_access_time();
-			
-		}
-		
-	}
-	
 	if (comando != NULL){
 		sender_queu->add_frame(comando, parameters_in, datos_in);
 		g_message("comm_interface::wsk_send_command: puesta en cola la trama: %s",comando);
@@ -1211,7 +1229,7 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 	return 0;
 }
 
-void comm_interface::wsk_set_status(enum STATUSES status){
+void comm_interface::wsk_set_status(enum STATUSES status,const char* function){
 	
 	char* old_char = (char*)calloc(1,30);
 	char* wsk_status_char = (char*)calloc(1,30);
@@ -1221,7 +1239,7 @@ void comm_interface::wsk_set_status(enum STATUSES status){
 	
 	parse_status(wsk_status, wsk_status_char);
 	
-	//g_debug("comm_interface::wsk_set_status: change from %s to %s", old_char, wsk_status_char);
+	g_debug("comm_interface::%s: wsk status change from %s to %s",function,old_char,wsk_status_char);
 	
 	g_free(old_char);
 	g_free(wsk_status_char);
@@ -1257,6 +1275,143 @@ void comm_interface::set_init(){
 	init = TRUE;
 }
 
+int comm_interface::solve_dns(GHashTable *conf){
+	
+	// Inicializar el proceso de resolución de nombre del servidor websocket.
+	// Valores que retorna:
+	//  0 - la variable wsk_server_IP ya es una dirección IP válida.
+	//  1 - se inició el proceso de resolución de IP, hay que esperar.
+	// -1 - error en el proceso de inicialización del proceso de resolución DNS.
+	
+	// Primero debo chequear que la variable del archivo de configuración no sea ya
+	// una dirección ip, en cuyo caso no hay que hacer nada.
+	
+	gchar *addr;
 
+	addr = (gchar*) g_hash_table_lookup(conf,(gchar *)"wsk_server_address");
+	
+	if (addr != NULL){
+		
+		if (is_IP(addr)) {
+			
+			// La variable del archivo de configuración era una dirección IP válida, por lo tanto
+			// no hay que resolver DNS.
+			
+			if (wsk_server_IP == NULL) set_wsk_server_IP(addr);	// Si la variable es NULL es porque esta es la primera vez
+																// que se chequea, por lo tanto se le asigna el valor que
+																// hay en el archivo de configuración y se retorna informando
+																// que no hay que resolver DNS. Si la variable no era NULL es
+																// porque esta no es la primera vez que se chequea, por lo
+																// tanto en un chequeo anterior ya se había establecido su
+																// valor correcto, se retorna y ya.
+			return 0;
+			
+		}
+		else {
+			
+			// la variable no era un ip, por lo tanto hay que resolver DNS.
+			// Inicializar la interface de ares y realizar la solicitud DNS.
+			
+			g_debug("comm_interface::solve_dns: solving IP address for wsk server: %s",addr);
+			g_resolver_lookup_by_name_async(myResolver,addr,NULL,dns_callback,NULL);
+			
+			return 1;
+			
+		}
+	}
+	else {
+		
+		g_message("solve_dns: the sicat.conf variable wsk_server_address could not be NULL, aborting..");
+		g_assert(0);
+		return -1;
+	}
+}
+
+void comm_interface::set_wsk_server_IP(gchar* server_IP){
+	
+	g_free(wsk_server_IP);
+	wsk_server_IP = g_strdup(server_IP);
+	g_debug("comm_interface::set_wsk_server_IP: direccion IP del servidor websockets: %s",wsk_server_IP);
+}
+
+int comm_interface::wsk_initialize(){
+	
+	int r = -1;
+	int x;
+	
+	r = solve_dns(nocat_conf);
+			
+	switch (r) {
+		
+		case	-1:
+		
+			return -1;
+			
+		case	0:
+			
+			x = wsk_create();
+	
+			if (x == -1){
+				
+				// Aquí debo avisar a la administración del sistema de que ha habido un probrema en el
+				// establecimiento del wsk.
+
+				g_warning("comm_interface::wsk_initialize: websocket initialization error, retrying...");
+				
+				return -1;
+			}
+			break;
+			
+		case	1:
+		
+			wsk_set_status(WSK_WAITING_DNS,"wsk_initialize");
+			
+		default:
+			break;
+	}
+	return 0;
+}
+
+int comm_interface::wsk_create(){
+
+	if (context == NULL){
+		
+		g_message("comm_interface::wsk_create: Creating the libwebsocket context..");
+	
+		wsk_create_context();
+
+		if (context == NULL) {
+
+			g_warning("comm_interface::wsk_create: Could not create the websocket context, exiting..");
+			return -1;
+		}
+		
+		wsk_client_connect();
+
+		if (wsi == NULL) {
+
+			libwebsocket_context_destroy (context);
+			g_warning("comm_interface::wsk_create: libwebsocket client connect failed...");
+			return -1;
+		}
+		else {
+			
+			wsk_set_status(WSK_WAITING_CONFIRM,"wsk_create");
+			set_last_access_time();
+			
+		}
+		
+		libwebsocket_callback_on_writable(context, wsi);
+	}
+	return 0;
+
+}
+
+void comm_interface::wsk_restart(){
+	
+	set_last_access_time();
+	if ((wsk_status == WSK_DISCONNECTED) || (wsk_status == WSK_CLOSED)) set_init();
+
+}
 #endif
 /***************************** end class wsk_comm_interface methods ****************/

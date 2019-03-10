@@ -25,7 +25,7 @@
 # define isident(x) (isalnum(x) || (x) == '_')
 
 gchar *g_strncpy( gchar *dest, const gchar *src, guint n );
-GHashTable *g_hash_new (void);
+GHashTable *g_hash_new ();
 guint g_hash_free (GHashTable *h);
 gboolean g_hash_delete(GHashTable * h, const gchar *key);
 gboolean g_hash_set(GHashTable *h, const gchar *key, gchar *val);

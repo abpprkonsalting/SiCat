@@ -392,24 +392,6 @@ int main(int argc, char** argv)
 	/* set network parameters */
 	set_network_defaults(nocat_conf);
 
-	/*if (!(solve_dns(nocat_conf,(gchar *)"AuthServiceAddr")){
-		
-		g_message("Unable to get IP address of authentication server, aborting program...");
-		return -1;
-	}
-	
-	if (!(solve_dns(nocat_conf,(gchar *)"AllowedWebHosts")){
-		
-		g_message("Unable to get IP address of AllowedWebHosts, aborting program...");
-		return -1;
-	}*/
-	
-	/*if (!(solve_dns(nocat_conf,(gchar *)"wsk_server_address")){
-		
-		g_message("Unable to get IP address of websocket server, aborting program...");
-		return -1;
-	}*/
-
 	/* initialize the firewall */
 	fw_init(nocat_conf);
 

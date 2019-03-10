@@ -10,7 +10,7 @@
 
 //# include "http.h"
 # include "firewall.h"
-# include "util.h"
+//# include "util.h"
 
 ssize_t http_sendfile ( http_request *h, int in_fd );
 gchar *peer_arp( peer *p );
