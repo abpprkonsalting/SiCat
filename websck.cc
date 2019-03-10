@@ -387,6 +387,20 @@ void parse_status(int status, char* status_char){
 #ifdef MFRAME
 
 // class m_frame constructor from a message (parse an arrived xml message to a class m_frame)
+
+/*
+ 
+<Protocol Version="0">
+	<Frame Type="1" Command="6" FrameCount="1" AckCount="0" BodyFrameSize="0" FromDeviceId="xxx" ToDeviceId="yyy">
+		<Parameters Count="1">
+			<Parameter Name="IsAuthenticated" Value="true" />
+			<Parameter Name="UserToken" Value="48e3f2d3-f805-4ea7-afda-d0fe2344b0b3" />
+		</Parameters>
+	</Frame>
+</Protocol>
+
+*/
+
 m_frame::m_frame(char* message, unsigned int m_size, bool* correct){
 	
 	char* message_remaining = message;
@@ -747,6 +761,8 @@ char* m_frame::print(){
 #endif
 /***************************** end class m_frame methods ***************************/
 
+
+
 /***************************** class received_messages_queu methods ****************/
 #ifdef MFRAME
 
@@ -899,6 +915,8 @@ bool received_messages_queu::delete_frame(unsigned int m_frame_index){
 
 #endif
 /***************************** end class received_messages_queu methods ************/
+
+
 
 /***************************** class send_messages_queu methods ********************/
 #ifdef MFRAME
@@ -1080,6 +1098,8 @@ unsigned short int send_messages_queu::get_count(){
 
 #endif
 /***************************** end class send_messages_queu methods ****************/
+
+
 
 /***************************** class wsk_comm_interface methods ********************/
 #ifdef MFRAME

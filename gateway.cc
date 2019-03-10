@@ -27,8 +27,7 @@ gchar* local_host( http_request *h ) {
 	
 	gchar* ret = NULL;
 	
-	if (*(h->sock_ip) != 0) ret = g_strdup_printf( "%s:%s", h->sock_ip, CONF("GatewayPort") );
-	else ret = g_strdup_printf( "[%s]:%s", h->sock_ip6, CONF("GatewayPort") );
+	ret = g_strdup_printf( "%s:%s", h->sock_ip, CONF("GatewayPort") );
 	
 	return ret;
 }
@@ -63,11 +62,11 @@ peer* find_peer ( http_request *h) {
     peer_permit( nocat_conf, p,NULL);
 }*/
 
-void remove_peer ( peer *p ) {
+/*void remove_peer ( peer *p ) {
 	
     g_message( "remove_peer: Removing peer %s", p->ip );
     peer_deny(nocat_conf, p);
-}
+}*/
 
 /*gboolean check_peer_expire ( gchar *ip, peer *p, time_t *now ) {
 	
@@ -91,9 +90,9 @@ void compare_token( gchar *hw, peer *p, struct mi_struct* fr){
 			
 			fr->encontrado = TRUE;			
 			if (strcmp(fr->trama->parameters->items[0]->valor,"true") == 0){
-				g_debug("compare_token: peer %s autenticado, permitiendolo por todo el timeout...",hw);
 				
-				peer_permit (nocat_conf, p,NULL);
+				g_debug("compare_token: peer %s autenticado, permitiendolo por todo el timeout...",hw);
+				peer_permit(nocat_conf, p,NULL);
 					
 			}
 		}

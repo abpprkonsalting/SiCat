@@ -25,7 +25,7 @@ typedef struct {
     http_request *h;
 } fw_action;
 
-static void fw_exec_add_env ( gchar *key, gchar *val, GPtrArray *env ) {
+static void fw_exec_add_env(gchar *key, gchar *val, GPtrArray *env ) {
     gchar *p;
     
     p = g_strdup_printf( "%s=%s", key, val );
@@ -94,7 +94,7 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
     
 	data = g_hash_dup(conf);
     
-    // Than add specifics about this particular client, if any
+    // Then add specifics about this particular client, if any
     if (p != NULL) {
 
 		g_hash_set( data, "IP",p->ip );
@@ -196,7 +196,7 @@ peer* peer_new ( GHashTable* conf, http_request *h ) {
     p->start_time = g_new0(gchar,100);
     p->end_time = g_new0(gchar,100);
     p->token[0] = '\0';
-    p->status = 1;
+    p->status = 0;
     //peer_extend_timeout(conf, p,conf_int( conf, "LoginGrace" ));
     
     return p;
@@ -223,18 +223,20 @@ int peer_permit(GHashTable *conf, peer *p, http_request* h) {
 	
 	loctime = localtime (&p->current_time);
 	strftime (p->end_time, 100, "%H:%M:%S", loctime);
-	
+	//g_debug("1.1");
 	if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h) == 0)) return -1;
-	
+	//g_debug("1.2");
 	if (h == NULL){
-		g_hash_table_remove(peer_tab,p->hw);
-		peer_free (p);
+		if (g_hash_table_remove(peer_tab,p->hw)) {
+			g_debug("peer_permit: removido el peer de la hashtable");
+			peer_free(p);
+		}
 	}
 
     return 0;
 }
 
-int peer_deny ( GHashTable *conf, peer *p ) {
+/*int peer_deny ( GHashTable *conf, peer *p ) {
 	
     //g_assert( p != NULL );
     //g_message("peer status = %d",p->status);
@@ -250,7 +252,7 @@ int peer_deny ( GHashTable *conf, peer *p ) {
     }
     //g_message("peer status = %d",p->status);
     return 0;
-}
+}*/
 
 //# ifdef HAVE_LIBCRYPT
 

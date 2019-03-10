@@ -14,4 +14,5 @@ gboolean check_peer(class m_frame* frame);
 /*** actually defined in either open.c or passive.c ***/
 int handle_request( http_request *h );
 void splash_peer ( http_request *h );
+void punish_peer ( http_request *h, peer* p );
 

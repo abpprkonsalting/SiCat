@@ -39,17 +39,21 @@ gboolean g_hash_delete(GHashTable * h, const gchar *key) {
     // if (g_hash_table_lookup_extended(h, key, (gpointer *)&k, (gpointer *)&v)) {
     if (g_hash_table_lookup_extended(h, key, &k, &v)) {
 		g_hash_table_remove(h, key);
-			kk = ((gchar *) k);
-			vv = ((gchar *) v);
+		kk = ((gchar *) k);
+		vv = ((gchar *) v);
 		if (kk != NULL) g_free(kk);
 		if (vv != NULL) g_free(vv);
-	return TRUE;
+		return TRUE;
     }
     return FALSE;
 }
 
 gboolean g_hash_set(GHashTable *h, const gchar *key, gchar *val) {
 	
+// A esta funci'on se le entra con dos punteros gchar a dos strings que representan la key y el val que se quieren insertar en la tabla.
+// Primero se garantiza con g_hash_delete que en la tabla no exista una key igual, y despu'es se duplican los strings key y val insert'andose
+// estos en la tabla.
+		
     gchar *k, *v;
     gboolean over;
 
@@ -133,15 +137,15 @@ gchar *url_encode( const gchar *src ) {
     dest = dest0 = g_new0(gchar, n * 3);
 
     for (; *src != '\0' && n >= 0; src++, dest++, n--) {
-	// g_message( "src: %s dest: %s n: %d", src, dest0, n );
-	if ( isalnum(*src) || strchr("./-_", *src) )
-	    *dest = *src;
-	else if ( *src == ' ' )
-	    *dest = '+';
-	else {
-	    sprintf( dest, "%%%02X", (int) *src & 0xFF );
-	    dest += 2;
-	}
+		// g_message( "src: %s dest: %s n: %d", src, dest0, n );
+		if ( isalnum(*src) || strchr("./-_", *src) )
+		    *dest = *src;
+		else if ( *src == ' ' )
+		    *dest = '+';
+		else {
+		    sprintf( dest, "%%%02X", (int) *src & 0xFF );
+		    dest += 2;
+		}
     }
 
     *dest = '\0'; 
@@ -170,6 +174,11 @@ GString *build_url( const gchar *uri, GHashTable *query ) {
 /********** I/O stuff **********/
 
 gchar *load_file( const char *path ) {
+	
+// A esta funci'on se le pasa un string con el nombre del archivo que se desea cargar en memoria y ella devuelve un puntero a un
+// 'area din'amica de memoria donde se ha cargado el contenido del archivo. El 'area din'amica de memoria se deber'a liberar cuando
+// se haya terminado de usar el contenido del archivo.
+	
     gchar *file;
     struct stat s;
     void *data;

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<!--[if IE 9 ]><html class="ie ie9" lang="en" class="no-js"> <![endif]-->
+<!--[if !(IE)]><!-->
+<html lang="en" class="no-js">
+<!--<![endif]-->
+<head>
+    <title>Datalnet Social WIFI</title>
+    <script>
+		var timestart="$diff1";
+		
+		function countdown() {
+			
+			if (timestart==0) {
+
+				location.assign("$action1");
+			}
+			else{
+				
+				timestart-=1;
+				var h=Math.floor(timestart/3600);
+				var m=Math.floor(timestart/60);
+				var s=timestart%60;
+				m = checkTime(m);
+				s = checkTime(s);
+				//document.getElementById("butt").disabled = true;
+				document.getElementById('txt').innerHTML = h+"h:"+m+"m:"+s+"s";
+				var t = setTimeout(function(){countdown()},1000);
+			}
+		}
+
+		function checkTime(i) {
+		    if (i<10) {i = "0" + i};  // add zero in front of numbers < 10
+		    return i;
+		}
+	</script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="description" content="Social WIFI">
+
+    <style media="screen" type="text/css">
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background: #ececec;
+        }
+
+        h3 {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            color:#555555;
+        }
+
+        .wrapper {
+            width: 100%;
+            min-height: 100%;
+            height: auto !important;
+            height: 100%;
+            margin: 0 auto -34px;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 6px 12px;
+            margin-bottom: 0;
+            font-size: 14px;
+            font-weight: normal;
+            line-height: 1.42857143;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: middle;
+            cursor: pointer;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            background-image: none;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .btn-primary {
+            color: #fff;
+            background-color: #87B931;
+            border-color: #87B931;
+        }
+        
+        .vspacetop-100 {
+            margin-top: 100px;
+        }
+
+        .vspacetop-35 {
+            margin-top: 35px;
+        }
+    </style>
+
+</head>
+<body onload="countdown()">
+    <div class="wrapper text-center">
+        <div class="vspacetop-100">
+            <img src="/images/socialwifilogo.png" />
+            <h3>¡Usted ha estado conectado sin autentificarse!</h3>
+            <h3>¡You have been connected without autenticating!</h3>
+            <h3>Debe esperar / Must wait :</h3>
+            <div id="txt"></div>
+        </div>
+    </div>
+</body>
+</html>

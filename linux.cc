@@ -143,7 +143,7 @@ gchar* get_network_address (const gchar *dev) {
     return dest;
 }
 
-gchar* detect_network_device ( const gchar *exclude ) {
+gchar* detect_network_device(const gchar *exclude) {
     gchar dev[7], dest[9];
     gchar *out = NULL;
     FILE *route;

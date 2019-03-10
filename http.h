@@ -29,15 +29,12 @@ typedef struct peer_st {
     char hw[18]; /* 11:22:33:44:55:66 */
     char token[35];
     time_t current_time;
+    time_t punish_time;
     gchar* start_time;
     gchar* end_time;
     
-    //enum { PEER_ACCEPT, PEER_DENY } status;	//Esto tuve que cambiarlo para la linea 
-    											//de abajo pues no me compilaba bien firewall.cc
-    											//PEER_ACCEPT = 0
-    											//PEER_DENY = 1
-    											//PEER_ACEPT_TEMP = 2
-    unsigned char status;
+    unsigned char status;	// 0 = En proceso de autentificaci'on
+							// 1 = Castigado.
     
     
 } peer;

@@ -476,12 +476,13 @@ int main(int argc, char** argv)
 	int ret;
 
 	/* read sicat.conf */
-
+	
 	nocat_conf = read_conf_file( NC_CONF_PATH "/sicat.conf" );
 	
 	if (nocat_conf == NULL) {
 		
-		//g_error("could not read the config file, aborting program...");
+		openlog("SiCat", LOG_CONS | LOG_PID, LOG_DAEMON );
+		syslog( LOG_ERR | LOG_DAEMON, "could not read the config file, aborting program...");
 		return -1;
 	}
 	

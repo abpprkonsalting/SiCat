@@ -31,10 +31,13 @@ struct conf_t default_conf[] = {
     
     { (gchar*)"LoginTimeout",	 (gchar*)"1200" },
     { (gchar*)"LoginGrace",	 (gchar*)"180" },
+    { (gchar*)"LoginPunish",	 (gchar*)"300" },
+    { (gchar*)"AllowPunishment",	 (gchar*)"0" },
 
     //  Where to look for form templates?
     { (gchar*)"DocumentRoot",	 (gchar*)NC_DOCUMENT_ROOT },
     { (gchar*)"SplashForm",	(gchar*)"splash.html" },
+    { (gchar*)"PunishForm",	(gchar*)"punish.html" },
     { (gchar*)"IPv6",	(gchar*)"0" },
 
     //  Default log level.

@@ -35,27 +35,20 @@ GHashTable *parse_conf_string( const gchar *in ) {
     GHashTable *out = g_hash_new();
 
     lines = g_strsplit( in, "\n", 0 );
-    for ( i = 1; lines[i] != NULL; i++ )
-	parse_conf_line( out, lines[i] );
+    for ( i = 1; lines[i] != NULL; i++ ) parse_conf_line( out, lines[i] );
 
     g_strfreev( lines );
     return out;
 }
 
 GHashTable *set_conf_defaults( GHashTable *conf, struct conf_t *def ) {
+	
     guint i;
-    time_t now;
     
-    for (i = 0; def[i].param != NULL; i++)
-	if (g_hash_table_lookup(conf, def[i].param) == NULL) {
-	    if (def[i].value == NULL)
-		g_error("set_conf_defaults: Required config param missing: %s", def[i].param);
-	    else
-		g_hash_set(conf, def[i].param, def[i].value);
+    for (i = 0; def[i].param != NULL; i++) {
+		
+		if (g_hash_table_lookup(conf, def[i].param) == NULL) g_hash_set(conf, def[i].param, def[i].value);
 	}
-
-    time(&now);
-    g_hash_set( conf, "GatewayStartTime", ctime(&now) );
 
     return conf; 
 }
@@ -104,11 +97,14 @@ void set_network_defaults( GHashTable *conf ) {
 
 GHashTable *read_conf_file( const gchar *path ) {
 
-    gchar *file = load_file(path);
-
-    if (file == NULL) 
-	return NULL;
+    gchar *file = NULL;
     
+    file = load_file(path);
+
+    if (file == NULL) {
+		g_warning("error");
+		return NULL;
+	}
     if (nocat_conf != NULL) {
 		g_warning("read_conf_file: Reloading configuration from %s!", path);
 		g_free(nocat_conf);
@@ -122,12 +118,11 @@ GHashTable *read_conf_file( const gchar *path ) {
     return nocat_conf;
 }
 
-/*Modifications added by abp*/
-gchar *conf_string( GHashTable *conf, const gchar *key ){
+gchar *conf_string(GHashTable *conf, const gchar *key ){
 
 	gchar* val;
 
-	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
+	val = (gchar*) g_hash_table_lookup( conf, key );
 	if (val == NULL) g_warning("conf_string: Missing required configuration directive '%s'", key);
 	return val;
 }

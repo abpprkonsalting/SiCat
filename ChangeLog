@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+2014-09-09:
+
+Added the "punishment" function to clients who navigate during the grace period without being authenticated. If the grace period passes and the client
+has not been authenticated on the server (the device has not received the signal that the client performed the authentication correctly) the client is 
+disabled for a period of time determined by the variable in the configuration file "LoginPunish" and on any attempt to connect to the internet via http, 
+it's shown a page informing him that must wait for the punishment time before trying to connect again.
+
+This function is controlled by the "AllowPunishment" variable of the configuration file, which defaults to 0 (the function of punishment).
+
 2014-09-03:
 
 Changed the mechanism for checking the connection time of users to the system. Now the program does not have a control of the connected users
