@@ -117,6 +117,18 @@ for iface in $InternalDevice; do
 		#		done
 		#	done
 		#fi
+		
+		## Allow access in the local network to the LuCi configuration
+		# 	page
+		#
+		if ["$AllowedWebHosts" ]; then 
+			for host in $AllowedWebHosts; do
+				for port in 80 443; do
+					iptables -t filter -A INPUT -i $InternalDevice -s $net -d $host -p tcp --dport $port -j ACCEPT
+					iptables -t filter -A OUTPUT -o $InternalDevice -d $net -s $host -p tcp --sport $port -j ACCEPT
+				done
+			done
+		fi
 
 		for fwmark in $classes; do
 			# Only forward tagged traffic per class

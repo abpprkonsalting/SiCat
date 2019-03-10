@@ -1,18 +1,85 @@
-<html>
-<head><title>DatalNet Gateway System</title></head>
-<body bgcolor=#FFFFFF text=000000>
-<form method="POST" action="$action1">
-<table border=0 cellpadding=5 cellspacing=0>
-<tr>
-  <td>Welcome to <a href="/status">DatalNet Gateway System</a>.</td>
-</tr>
-<tr>
-      <td align=center height="23"><input type="image" name="mode_login" src="images/login.gif" width="55" height="17" border="0"></td>
-</tr>
-</table>
-	<input type="hidden" name="redirect" value="$redirect">
-</form>
-  <p><img src="/images/auth_logo.gif" width="112" height="35">
-<p>
+<!DOCTYPE html>
+<!--[if IE 9 ]><html class="ie ie9" lang="en" class="no-js"> <![endif]-->
+<!--[if !(IE)]><!-->
+<html lang="en" class="no-js">
+<!--<![endif]-->
+<head>
+    <title>Datalnet Social WIFI</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="description" content="Social WIFI">
+
+    <style media="screen" type="text/css">
+        body {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background: #ececec;
+        }
+
+        h3 {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            color:#555555;
+        }
+
+        .wrapper {
+            width: 100%;
+            min-height: 100%;
+            height: auto !important;
+            height: 100%;
+            margin: 0 auto -34px;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 6px 12px;
+            margin-bottom: 0;
+            font-size: 14px;
+            font-weight: normal;
+            line-height: 1.42857143;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: middle;
+            cursor: pointer;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            background-image: none;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .btn-primary {
+            color: #fff;
+            background-color: #87B931;
+            border-color: #87B931;
+        }
+
+        .vspacetop-100 {
+            margin-top: 100px;
+        }
+
+        .vspacetop-35 {
+            margin-top: 35px;
+        }
+    </style>
+
+</head>
+<body>
+    <div class="wrapper text-center">
+        <div class="vspacetop-100">
+            <form method="POST" action="$action1">
+            <img src="/images/socialwifilogo.png" />
+            <h3>¡Bienvenidos a nuestro servicio de WIFI gratuito!</h3>
+            <h3>¡Welcome to our free  WIFI service!</h3>
+            <input class="btn btn-primary vspacetop-35" type="submit" name="mode_login" value="Acceder / Enter">
+            
+            <input type="hidden" name="redirect" value="$redirect">
+            </form>
+            
+        </div>
+    </div>
 </body>
 </html>
