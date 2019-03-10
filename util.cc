@@ -14,7 +14,7 @@ GHashTable* g_hash_new (void) {
 }
 
 static gboolean g_hash_free_each ( gpointer key, gpointer val, gpointer data ) {
-    // g_warning("freeing %s (= %s)", key, val);
+
     if (key != NULL) g_free(key);
     if (val != NULL) g_free(val);
     return TRUE;
@@ -48,6 +48,7 @@ gboolean g_hash_delete(GHashTable * h, const gchar *key) {
 }
 
 gboolean g_hash_set(GHashTable *h, const gchar *key, gchar *val) {
+	
     gchar *k, *v;
     gboolean over;
 
@@ -55,13 +56,10 @@ gboolean g_hash_set(GHashTable *h, const gchar *key, gchar *val) {
     //g_assert( key != NULL );
     //g_assert( val != NULL );
 	
-	//g_message("antes del delete %s: %s",key,val);
-	
     over = g_hash_delete(h, key);
     k = g_strdup(key);
     v = g_strdup(val);
     
-    //g_message("después del delete %s: %s",k,v);
     g_hash_table_insert(h, k, v);
     return over;
 }
@@ -73,12 +71,10 @@ static void g_hash_dup_each ( gchar *k, gchar *v, GHashTable *dest ) {
 
 GHashTable *g_hash_merge( GHashTable *dest, GHashTable *src ) {
     g_hash_table_foreach( src, (GHFunc) g_hash_dup_each, dest );
-    //g_message("returning from g_hash_merge");
     return dest;
 }
 
 GHashTable *g_hash_dup( GHashTable *src ) {
-	//g_message("entré en g_hash_dup");
     GHashTable *dest = g_hash_new();
     return g_hash_merge( dest, src );
 }
@@ -182,7 +178,7 @@ gchar *load_file( const char *path ) {
 
     fd = open( path, O_RDONLY );
     if ( fd == -1 ) {
-		g_warning( "Can't open %s: %m", path );
+		g_warning( "load_file: Can't open %s: %m", path );
 		return NULL;
     }
 
@@ -223,7 +219,6 @@ gchar *parse_template( gchar *src, GHashTable *data1 ) {
 			if ( *src == '\0' )
 			break;
 		}
-			//g_message( "voy por 3.1");
 		// If the immediately following char is alphabetical...
 		if (isalpha(*( src + 1 ))) {
 			// Find the identifier following the $
@@ -237,27 +232,21 @@ gchar *parse_template( gchar *src, GHashTable *data1 ) {
 			g_free(var);
 
 			src += n;
-				//g_message( "voy por 3.2");
 		} 
 		else {
 			// Otherwise save the $
 			g_string_append(dest, "$");
-				//g_message( "voy por 3.3");
 		}
     }
-    
-    //val = g_renew( gchar, dest->str, strlen(dest->str) + 1 );
     
     val = g_try_new0 (gchar, strlen(dest->str) + 1);
     if (val != NULL){
     	
     	memcpy(val,dest->str,strlen(dest->str));
 	}
-	else g_message ("util.cc parse_template: could not allocate space for return value");
+	else g_message ("parse_template: could not allocate space for return value");
     
-    	//g_message( "voy por 3.4");
     g_string_free( dest, FALSE );
-    //g_message( "voy por 3");
     return val;
 }
 
@@ -297,48 +286,50 @@ gchar *md5_crypt( const gchar *src, gchar *salt ) {
 
 gboolean get_address_from_name(gchar* name){
 	
-	char *first, *second, *third, *temp;
+	/*gchar* var;
 	gboolean is_IP = TRUE;
+	struct sockaddr_in addr;
 	
 	//struct hostent * host_info;
 	
 	//Chequear que la variable no sea ya una ip
 	
-	first = strtok ((char *)name, (const char *)".");
-	
-	if (first != NULL){
-		
-		if (strcspn(first, (const char *)"0123456789") == 0 ){
-			
-			second = strtok (NULL, (const char *)".");
-			
-			if (second != NULL){
-				
-				if (strcspn(second, (const char *)"0123456789") == 0 ){
-					
-					third = strtok (NULL, (const char *)".");
-					
-					if (strcspn(third, (const char *)"0123456789") == 0 ){
-						
-						
-					}
-				}
-			}
-		}
-		else {
-			// Hay un caracter no numérico en el primer token, por lo tanto esto no es una dirección
-			// IP
-			
-			is_IP = FALSE;
-			
-		}		
-	}
-	else {
-		// This is the else of the search for the first token. As not finding a first dot means that
-		// there is not dots at all in the name passed as argument to the function this could not be
-		// an ip address so we try to solve the address.
-		
-		is_IP = FALSE;
-	}
-	
+	if ( inet_aton(name, addr.sin_addr) != 0 ) return name;*/
+	return TRUE;
 }
+
+/*loguear_mensaje(unsigned int level, const gchar* message){
+	
+	size_t message_len = 0;
+    div_t result;
+    unsigned int t = 1;
+	gchar* message_part = NULL;
+	unsigned int width = (unsigned int) CONFd("llwidth");
+	
+	message_len = strlen(message);
+	
+	if ( message_len > width ) {
+		
+		result = div(message_len,width);
+		t = result.quot;
+		if (result.rem > 0) t = t + 1;
+	}
+	
+	for (unsigned int i = 0; i < t; i++){
+		
+		message_part = g_new0(gchar,width + 2);
+		strncpy (message_part,message+(i*width),width);
+		
+		switch (level){
+			
+			case 0:	    g_message(message_part);	break;
+			case 1:	    g_warning(message_part);	break;
+			case 2:	    g_critical(message_part);	break;
+			case 3:	    g_error(message_part);	    break;
+			case 4:	    g_debug(message_part);	    break;
+			default:	g_message(message_part);	break;
+		}
+		
+		g_free(message_part);
+	}
+}*/

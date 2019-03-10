@@ -14,7 +14,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 		
 		case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 			
-			g_error("LWS_CALLBACK_CLIENT_CONNECTION_ERROR");
+			g_warning("wsk callback_authentication: LWS_CALLBACK_CLIENT_CONNECTION_ERROR");
 			
 			wsk_comm_interface->wsk_set_status(WSK_ERROR);
 			
@@ -22,12 +22,12 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 		case LWS_CALLBACK_CLIENT_FILTER_PRE_ESTABLISH:
 		
-			lwsl_debug("LWS_CALLBACK_CLIENT_FILTER_PRE_ESTABLISH");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_CLIENT_FILTER_PRE_ESTABLISH");
 			break;
 
 		case LWS_CALLBACK_CLIENT_ESTABLISHED:
 
-		 	lwsl_debug("LWS_CALLBACK_CLIENT_ESTABLISHED");
+		 	g_debug("wsk callback_authentication: LWS_CALLBACK_CLIENT_ESTABLISHED");
 			
 			wsk_comm_interface->wsk_set_status(WSK_CLIENT_ESTABLISHED);
 		 	
@@ -35,7 +35,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 		case LWS_CALLBACK_CLOSED:
 			 
-			lwsl_debug("LWS_CALLBACK_CLOSED");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_CLOSED");
 						
 			wsk_comm_interface->wsk_set_status(WSK_CLOSED);
 			return -1;
@@ -44,16 +44,16 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 
 		case LWS_CALLBACK_CLIENT_RECEIVE:
 			
-			lwsl_debug("LWS_CLIENT_RECEIVE");
-			//lwsl_debug("recibidos %d  bytes",len);
-			//lwsl_notice("recibidos %d  bytes",len);
-			//lwsl_notice("recibido: %s",(char*)in);
+			g_debug("wsk callback_authentication: LWS_CLIENT_RECEIVE");
+			//g_debug("recibidos %d  bytes",len);
+			//g_message("recibidos %d  bytes",len);
+			//g_message("recibido: %s",(char*)in);
 			
 			//if (libwebsocket_is_final_fragment(wsi)) g_message("la trama llegó completa");
 			
 			x = strlen((char*)in);
 			
-			//lwsl_notice("contados: %d caracteres",x);
+			//g_message("contados: %d caracteres",x);
 			
 			wsk_comm_interface->reception_queu->receive_frame((char *)in,len);
 
@@ -61,7 +61,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 
 		case LWS_CALLBACK_CLIENT_RECEIVE_PONG:
 		
-			lwsl_debug("LWS_CALLBACK_CLIENT_RECEIVE_PONG");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_CLIENT_RECEIVE_PONG");
 					
 			break;
 			
@@ -69,11 +69,11 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 			if (wsk_comm_interface->get_status() == WSK_IDDLE){
 				 
-				 lwsl_notice("Begining wsk close secuence..");
+				 g_message("wsk callback_authentication: Begining wsk close secuence..");
 				 return -1;
 			}
 			
-			lwsl_debug("LWS_CLIENT_WRITEABLE");
+			g_debug("wsk callback_authentication: LWS_CLIENT_WRITEABLE");
 			
 			wsk_comm_interface->sender_queu->run(wsi,wsk_comm_interface->get_status());
 			
@@ -98,19 +98,19 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 		
 		case LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS:
 		
-			lwsl_debug("LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS");
 			break;
 			
 		case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:
 		
-			lwsl_debug("LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER");
  			break;
  			
  		/* because we are protocols[0] ...  */
 
 		case LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED:
 		
-			lwsl_debug("LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED");
 			/*
 			if ((strcmp((char*)in, "deflate-stream") == 0) && deny_deflate) {
 				 g_message("denied deflate-stream extension\n"); 
@@ -130,38 +130,38 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 		case LWS_CALLBACK_PROTOCOL_INIT:
 		
-			lwsl_debug("LWS_CALLBACK_PROTOCOL_INIT");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_PROTOCOL_INIT");
  			break;
 
  		case LWS_CALLBACK_ADD_POLL_FD:
  		
- 			lwsl_debug("LWS_CALLBACK_ADD_POLL_FD");
+ 			g_debug("wsk callback_authentication: LWS_CALLBACK_ADD_POLL_FD");
  			break;
  			
 		case LWS_CALLBACK_DEL_POLL_FD:
 		
- 			lwsl_debug("LWS_CALLBACK_DEL_POLL_FD");
+ 			g_debug("wsk callback_authentication: LWS_CALLBACK_DEL_POLL_FD");
  			break;
  			
  		case LWS_CALLBACK_SET_MODE_POLL_FD:
  		
- 			lwsl_debug("LWS_CALLBACK_SET_MODE_POLL_FD");
+ 			g_debug("wsk callback_authentication: LWS_CALLBACK_SET_MODE_POLL_FD");
  			break;
  			
 		case LWS_CALLBACK_CLEAR_MODE_POLL_FD:
 		
-			lwsl_debug("LWS_CALLBACK_CLEAR_MODE_POLL_FD");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_CLEAR_MODE_POLL_FD");
 			break;
 			
 		case LWS_CALLBACK_PROTOCOL_DESTROY:
 		
-			lwsl_debug("LWS_CALLBACK_PROTOCOL_DESTROY");
+			g_debug("wsk callback_authentication: LWS_CALLBACK_PROTOCOL_DESTROY");
 			wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED);
 			break;
 				
 		default:
 		
-			g_message("Libwebsocket callback function called with unnatended reason (%d)",(int)reason);
+			g_message("wsk callback_authentication: Libwebsocket callback function called with unnatended reason (%d)",(int)reason);
 
 			break; 
 	}
@@ -236,7 +236,7 @@ gboolean call_libwebsocket_service(void* dummy){
 				// establecimiento del wsk.
 				
 				//g_message("websocket initialization error, retrying...");
-				g_warning("websocket initialization error, retrying...");
+				g_warning("call_libwebsocket_service: websocket initialization error, retrying...");
 				
 				return TRUE;
 			}
@@ -352,11 +352,7 @@ m_frame::m_frame(char* message, unsigned int m_size, bool* correct){
 	
 	//Chequear que el encabezamiento y el terminador xml estén en su sitio.
 	
-	if ((memcmp ("<Protocol", message, 9) != 0) || (strstr (message, "</Protocol>") == NULL)){
-		
-		g_message("trama incorrecta...");
-		return;
-	}
+	if ((memcmp ("<Protocol", message, 9) != 0) || (strstr (message, "</Protocol>") == NULL)) return;
 	
 	// Buscar el terminador del protocol header, poner un caracter nulo en él y marcar el
 	// próximo caracter como donde vamos a seguir después de parsear el protocolo.
@@ -460,7 +456,7 @@ m_frame::m_frame(char* message, unsigned int m_size, bool* correct){
 	*correct = TRUE;
 }
 
-/*/ class m_frame constructor from fields (build a class m_frame given certain fields)
+/* class m_frame constructor from fields (build a class m_frame given certain fields)
 m_frame::m_frame(char* comando, struct params* parameters_in, struct data* datos_in, bool* correct) {
 
 	m_frame_index = 0;
@@ -739,7 +735,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 
 	if (!right){	// Si hubo algún problema en la creación de la clase m_frame eliminarla y retornar false.
 	
-		lwsl_warn("ups: trama incorrecta..");
+		lwsl_warn("received_messages_queu::receive_frame: trama incorrecta..");
 		
 		char* tem = (char*)g_malloc0(message_size + 2);
 		memcpy(tem,message,message_size);
@@ -748,7 +744,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 		delete temp_frame;
 		return false;
 	}
-	else g_debug("se recibió la trama correctamente..");
+	else g_debug("received_messages_queu::receive_frame: se recibió la trama de autorización de cliente correctamente..");
 	
 	// Aquí chequeo si es una trama ack, en caso de serlo por el momento solamente se descarta esta y ya.
 	// En un futuro se deberá chequear en la cola de salida la trama que está esperando por el ack, se elimina de la
@@ -758,7 +754,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 	/*	Bloque comentariado temporalmente.
 	
 	if (memcmp(temp_frame->get_frame_type(),"A",1) == 0){
-		lwsl_notice("recibido un ack");
+		g_message("recibido un ack");
 		delete temp_frame;
 		wsk_comm_interface->set_last_access_time();
 		return true;
@@ -771,7 +767,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 
 		if (ptr_frames[i]->get_index() == temp_frame->get_index()){
 
-			lwsl_warn("repeated frame arrived, descarted...");
+			lwsl_warn("received_messages_queu::receive_frame: repeated frame arrived, descarted...");
 			delete temp_frame;
 			return false;
 		}
@@ -787,8 +783,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 	if (ptr_frames != NULL) g_free(ptr_frames);
 	ptr_frames = temp;
 	ptr_frames[count] = temp_frame;
-	//lwsl_debug("recibida la trama: %s",ptr_frames[count]->print());
-	lwsl_debug("recibida una trama");
+
 	count++;
 	wsk_comm_interface->set_last_access_time();
 	
@@ -806,7 +801,6 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 					if ((strcmp(temp_frame->parameters->items[0]->nombre,"IsAuthenticated") == 0) &&
 						(strcmp(temp_frame->parameters->items[1]->nombre,"UserToken") == 0)){
 						
-						//lwsl_notice("llamando a check_peer");
 						g_idle_add((GSourceFunc)check_peer, temp_frame);
 					}
 				}
@@ -971,7 +965,7 @@ void send_messages_queu::run(struct libwebsocket *wsi,enum STATUSES wsk_status){
 				if (result == (int)message_size){
 
 					//tempo = ptr_frames[0]->get_index();
-					lwsl_debug("enviada la trama: %s",ptr_frames[0]->print());
+					//g_debug("send_messages_queu::run: enviada la trama: %s",ptr_frames[0]->print());
 					/*	Bloque comentariado temporalmente
 					delete_frame(ptr_frames[0]->get_index());
 					*/
@@ -1123,8 +1117,6 @@ struct libwebsocket* comm_interface::get_wsi(){
 
 void comm_interface::wsk_create_context(void){
 	
-	//g_message("entré en creake_context");
-	
 	struct lws_context_creation_info* context_creation_info;
 	
 	//context_creation_info = g_try_new0(struct_type, n_structs);	//Esto es lo que debo usar en la versión final 
@@ -1150,7 +1142,6 @@ void comm_interface::wsk_create_context(void){
 
 	context = libwebsocket_create_context(context_creation_info);
 	if (context_creation_info != NULL) g_free(context_creation_info);
-	//g_message("salí de creake_context");
 }
 
 void comm_interface::wsk_client_connect (void){
@@ -1185,13 +1176,13 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 	
 	if (context == NULL){
 	
-		lwsl_notice("Creating the libwebsocket context..");
+		g_message("comm_interface::wsk_send_command: Creating the libwebsocket context..");
 	
 		wsk_create_context();
 
 		if (context == NULL) {
 
-			lwsl_warn("Could not create the websocket context, exiting..");
+			g_warning("comm_interface::wsk_send_command: Could not create the websocket context, exiting..");
 			return -1;
 		}
 		
@@ -1199,7 +1190,7 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 
 		if (wsi == NULL) {
 
-			g_error("libwebsocket client connect failed...");
+			g_warning("comm_interface::wsk_send_command: libwebsocket client connect failed...");
 			return -1;
 		}
 		else {
@@ -1213,7 +1204,7 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 	
 	if (comando != NULL){
 		sender_queu->add_frame(comando, parameters_in, datos_in);
-		g_message("adicionada la trama: %s",comando);
+		g_message("comm_interface::wsk_send_command: puesta en cola la trama: %s",comando);
 	}
 	
 	libwebsocket_callback_on_writable(context, wsi);
@@ -1230,7 +1221,7 @@ void comm_interface::wsk_set_status(enum STATUSES status){
 	
 	parse_status(wsk_status, wsk_status_char);
 	
-	//g_message("wsk change status from %s to %s", old_char, wsk_status_char);
+	//g_debug("comm_interface::wsk_set_status: change from %s to %s", old_char, wsk_status_char);
 	
 	g_free(old_char);
 	g_free(wsk_status_char);
@@ -1269,74 +1260,3 @@ void comm_interface::set_init(){
 
 #endif
 /***************************** end class wsk_comm_interface methods ****************/
-
-/***************************** class files_array methods ***************************/
-files_array::files_array(){
-	
-	cantidad = 0;
-	items = NULL;
-	
-}
-
-files_array::~files_array(){
-	
-	
-	
-}
-
-void files_array::add_file(int fd){
-	
-	cantidad += 1;
-	if (cantidad > 1) {
-		GIOChannel** items_new = g_try_renew(GIOChannel*, items, cantidad);
-		g_free(items);
-		items = items_new;
-	}
-	else items = g_new0(GIOChannel*,cantidad);
-	
-	items[cantidad-1] = g_io_channel_unix_new (fd);
-	
-}
-
-GIOChannel* files_array::get_item(int fd){
-	
-	for (unsigned int i = 0;i<cantidad;i++){
-		
-		if ( g_io_channel_unix_get_fd(items[i]) == fd ) return items[i];
-	}
-	return NULL;
-}
-
-void files_array::remove_chann(GIOChannel *channel) {
-	
-	if (cantidad == 1) {
-		
-		g_io_channel_close( items[0] );
-		g_io_channel_unref( items[0] );
-		cantidad = 0;
-		g_free(items[0]);
-		g_free(items);
-		items = NULL;
-	}
-	else {
-		for (unsigned int i = 0; i<cantidad;i++) {
-			
-			if (channel == items[i]) {
-				
-				g_io_channel_close( items[i] );
-				g_io_channel_unref( items[i] );
-				
-				for (unsigned int a = i;a<cantidad - 1;a++){
-				
-					items[a] = items[a+1];
-				}
-				break;
-			}
-		}
-		cantidad = cantidad - 1;
-		GIOChannel** items_new = g_try_renew(GIOChannel*, items, cantidad);
-		g_free(items);
-		items = items_new;
-	}
-}
-/***************************** end class files_array methods ***********************/

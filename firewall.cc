@@ -19,172 +19,125 @@ extern class comm_interface* wsk_comm_interface;
 
 typedef struct {
     pid_t pid;
-    gchar *cmd;
     peer *p;
+    http_request *h;
 } fw_action;
-
-typedef struct {
-	http_request *h;
-	peer *p;
-} redi;
 
 static void fw_exec_add_env ( gchar *key, gchar *val, GPtrArray *env ) {
     gchar *p;
     
-    g_assert( key != NULL );
-    g_assert( val != NULL );
     p = g_strdup_printf( "%s=%s", key, val );
     g_ptr_array_add( env, p );
 }
 
-static int fw_exec( fw_action *act, GHashTable *conf ) {
+gboolean redirecciona_delayed (fw_action *act ){
 	
-    GHashTable *data2;
-    GPtrArray *env;
-    gchar *cmd, **arg, **n;
-
-	//g_message("entré en fw_exec con action = %s",act->cmd);
-    data2 = g_hash_dup(conf);
-    
-    //g_message("retorné de g_hash_dup");
-    //
-    // Than add specifics about this particular client, if any
-    if (act->p != NULL) {
-		//g_message("act->p existe");
-		g_hash_set( data2, "IP",    act->p->ip );
-		g_hash_set( data2, "MAC",   act->p->hw );
-		g_hash_set( data2, (gchar*)"Class", (gchar*)"Public" );
-    }
-    /*else {
-    	g_message("act->p no existe");
-	}*/
-
-    cmd = conf_string( data2, act->cmd ); /*****************/
-    cmd = parse_template( cmd, data2 );
-    //g_message("Got command %s from action %s", cmd, act->cmd );
-    arg = g_strsplit( cmd, " ", 0 );
-
-    // prime the environment with our existing environment
-    env = g_ptr_array_new();
-    for ( n = environ; *n != NULL; n++ )	g_ptr_array_add( env, *n );
-
-    // Then add everything from the conf file
-    g_hash_table_foreach( data2, (GHFunc) fw_exec_add_env, env );
-
-    // Add a closing NULL so execve knows where to lay off.
-    g_ptr_array_add( env, NULL );
-
-    /* We're not cleaning up memory references because 
-     * hopefully the exec won't fail... */
-    execve( *arg, arg, (char **)env->pdata );
-    g_message( "execve %s failed: %m", cmd ); // Shouldn't happen.
-    return -1;
-}
-
-gboolean fw_cleanup( fw_action *act ) {
-	
-    guint status = 0, retval = 0;
-    pid_t r = 0;
-
-    r = waitpid( act->pid, (int*)&status, WNOHANG );
-    
-    if (! r) {
-	return TRUE;
-
-    } else if (r == -1 && errno != EINTR) {
-	g_warning( "waitpid failed: %m" );
-	return TRUE;
-	
-    } else if (WIFEXITED(status)) {
-	retval = WEXITSTATUS(status);
-	if (retval)
-	    g_warning( "%s on peer %s returned %d",
-		    act->cmd, act->p->ip, retval );
-	
-    } else if (WIFSIGNALED(status)) {
-	retval = WTERMSIG(status);
-	g_warning( "%s of peer %s died from signal %d", 
-		act->cmd, act->p->ip, retval );
-    }
-
-
-    g_free( act );
-    return FALSE;
-}
-
-/*static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
-    g_string_sprintfa( buf, "%s: %s\r\n", key, val );
-}*/
-
-gboolean redirecciona_delayed (redi* red){
-	
-	gchar* redir = (gchar*)g_hash_table_lookup(red->h->query,"redirect");
+	gchar* redir = (gchar*)g_hash_table_lookup(act->h->query,"redirect");
 	GHashTable* args = g_hash_new();
 	GString* dest;
 
 	g_hash_set( args, "redirect",	redir );
-	g_hash_set( args, "usertoken",	get_peer_token(red->p) );
-	g_hash_set( args, "userMac",    red->p->hw );
+	g_hash_set( args, "usertoken",	get_peer_token(act->p) );
+	g_hash_set( args, "userMac",    act->p->hw );
 	g_hash_set( args, "deviceMac",	macAddressFrom);
 
 	dest = build_url( CONF("AuthServiceURL"), args );
 
-	if (!CONFd("nowsk")) wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
+	if (CONFd("usewsk")) wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
 	
-	http_send_redirect(red->h, dest->str,red->p);
+	http_send_redirect(act->h, dest->str,act->p);
 
 	g_string_free( dest, 1 );
 	g_hash_free( args );
-	//g_free( redir );
 	
-    g_io_channel_shutdown(red->h->sock,FALSE,NULL);
-	//g_io_channel_unref(red->h->sock );
-	//requests->remove(red->h);
-	http_request_free (red->h);
+    g_io_channel_shutdown(act->h->sock,FALSE,NULL);
+	g_io_channel_unref(act->h->sock );
+	http_request_free (act->h);
+	g_spawn_close_pid(act->pid);
+	g_free(act);
 	
 	return FALSE;
 }
 
-void redirecciona(GPid pid,gint status,redi* red){
+void redirecciona(GPid pid,gint status,fw_action* act){
 	
-	g_timeout_add( 2000, (GSourceFunc) redirecciona_delayed, red);
+	if (act->h != NULL)	g_timeout_add(5000, (GSourceFunc) redirecciona_delayed, act);
+	else {
+		
+		g_spawn_close_pid(act->pid);
+		g_free(act);
+	}
+		
 }
 
 int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
 	
-    fw_action* act = g_new( fw_action, 1 );
-    redi* red = g_new( redi,1);
-    pid_t pid;
+    GHashTable *data;
+    GPtrArray *env;
+    gchar *cmd, **arg, **n, *tempo;
+    GError* gerror = NULL;
+    int resultado = 0;
+    
+    fw_action* act = g_new0( fw_action, 1 );
 
-    act->cmd = action;
-    act->p = p;
+    if (p != NULL) act->p = p;
+    if (h != NULL) act->h = h;
     
-    if (h != NULL) red->h = h;
-    if (p != NULL) red->p = p;
+	data = g_hash_dup(conf);
     
-	//g_message("antes del fork..");
-    pid = fork();
-    if (pid == -1){	
-    	g_warning( "Can't fork: %m" );
+    // Than add specifics about this particular client, if any
+    if (p != NULL) {
+
+		g_hash_set( data, "IP",p->ip );
+		g_hash_set( data, "MAC",p->hw );
+		g_hash_set( data, (gchar*)"Class", (gchar*)"Public" );
     }
     
-    if ((h != NULL) && (pid > 0)) {
-    	 	
-    	 //g_message("añadiendo el watch");
-    	 g_child_watch_add (pid, (GChildWatchFunc)redirecciona,red);
-    	 //g_message("añadido el watch");
-	}
-    
-    if (!pid) {
+    cmd = conf_string(data,action);
+    cmd = parse_template(cmd, data);
+
+    arg = g_strsplit( cmd," ",0);
+
+    // prime the environment with our existing environment
+    env = g_ptr_array_new();
+    for ( n = environ; *n != NULL; n++ ){
     	
-    	//sleep(1);
-    	//g_message("ejecutando el fw_exec");
-    	fw_exec(act, conf);
+    	tempo = g_strdup(*n);
+    	g_ptr_array_add(env, tempo);
 	}
 
-    //act->pid  = pid;
-    //g_idle_add( (GSourceFunc) fw_cleanup, act );
-    return 0;
+    // Then add everything from the conf file
+    g_hash_table_foreach( data, (GHFunc) fw_exec_add_env, env );
+
+    // Add a closing NULL so execve knows where to lay off.
+    g_ptr_array_add( env, NULL );
+    
+    if (g_spawn_async(NULL,arg,(char **)env->pdata,(GSpawnFlags)(G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_LEAVE_DESCRIPTORS_OPEN),
+    							NULL,NULL,&(act->pid),&gerror))
+    
+    			g_child_watch_add (act->pid, (GChildWatchFunc)redirecciona,act);
+    			
+    else {
+    	
+    	if (gerror != NULL) {
+				
+			g_warning("fw_perform: g_spawn_async failure, return error: %s",gerror->message);
+		}
+		else {
+			
+			g_warning("fw_perform: g_spawn_async failure, unknown return error");
+		}
+		resultado = 1;
+    }
+    
+    /************** Limpieza ******************/
+    
+    g_hash_free(data);
+    g_ptr_array_free(env,TRUE);
+    g_free(cmd);
+    g_strfreev(arg);
+     
+    return resultado;
 }
 
 int fw_init ( GHashTable *conf ) {
@@ -221,7 +174,7 @@ peer* peer_new ( GHashTable* conf, const gchar *ip ) {
 }
 
 void peer_free ( peer *p ) {
-    g_assert( p != NULL );
+    //g_assert( p != NULL );
     if (p->request != NULL) g_free( p->request );
     g_free(p);
 }
@@ -229,7 +182,7 @@ void peer_free ( peer *p ) {
 int peer_permit ( GHashTable *conf, peer *p, http_request* h) {
     
     time_t extension = 0;
-    //g_message("peer status = %d",p->status);
+
     if (p->status == 2) {
     	
     	if (*(h->peer_ip) != 0) {
@@ -280,7 +233,7 @@ gchar* get_peer_token ( peer *p ) {
     char *n;
     int carry = 1;
 
-    g_assert( p != NULL );
+    //g_assert( p != NULL );
     
     if (strcmp(p->token,(char*)"\0") == 0){	// Esto está aquí porque si el token
     										// ya tiene un valor no es necesario

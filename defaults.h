@@ -41,6 +41,7 @@ struct conf_t default_conf[] = {
     { (gchar*)"Verbosity",	(gchar*)"5" },
     { (gchar*)"LogFacility",	(gchar*)"syslog" },
     { (gchar*)"SyslogIdent",	(gchar*)"SiCat" },
+    { (gchar*)"llwidth",	(gchar*)"100" },
 
 	// Websocket defaults
 	{ (gchar*)"wsk_server_address",	(gchar*)"www.datalnet.com"},
@@ -55,7 +56,7 @@ struct conf_t default_conf[] = {
 	{ (gchar*)"wsk_time_out",	(gchar*)"600"},
 	{ (gchar*)"wsk_keep_alive",	(gchar*)"3600"},
 	{ (gchar*)"wsk_log_level", (gchar*)"1"},
-	{ (gchar*)"nowsk", (gchar*)"0"},
+	{ (gchar*)"usewsk", (gchar*)"1"},
 
     // Trailing NULL
     { NULL, NULL }

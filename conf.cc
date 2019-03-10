@@ -49,7 +49,7 @@ GHashTable *set_conf_defaults( GHashTable *conf, struct conf_t *def ) {
     for (i = 0; def[i].param != NULL; i++)
 	if (g_hash_table_lookup(conf, def[i].param) == NULL) {
 	    if (def[i].value == NULL)
-		g_error("Required config param missing: %s", def[i].param);
+		g_error("set_conf_defaults: Required config param missing: %s", def[i].param);
 	    else
 		g_hash_set(conf, def[i].param, def[i].value);
 	}
@@ -86,7 +86,7 @@ gboolean solve_dns( GHashTable *conf,gchar *key ){
 	}
 	else {
 		
-		g_message("The sicat.conf variable %s could not be NULL, aborting..",key);
+		g_message("solve_dns: the sicat.conf variable %s could not be NULL, aborting..",key);
 		return false;
 	}
 	
@@ -99,38 +99,38 @@ void set_network_defaults( GHashTable *conf ) {
     if (extdev == NULL) {
 		extdev = detect_network_device(NULL); 
 		if (extdev) {
-	    	g_message( "Autodetected ExternalDevice %s", extdev );
+	    	g_message( "set_network_defaults: Autodetected ExternalDevice %s", extdev );
 	    	g_hash_table_insert( conf, (gpointer)"ExternalDevice", (gpointer)extdev );
 		} else
-	    g_error( "No ExternalDevice detected!" );
+	    g_error( "set_network_defaults: No ExternalDevice detected!" );
     }
     
     intdev = (gchar*)g_hash_table_lookup(conf, "InternalDevice");
     if (intdev == NULL) {
 		intdev = detect_network_device(extdev); 
 		if (intdev) {
-	    	g_message( "Autodetected InternalDevice %s", intdev );
+	    	g_message( "set_network_defaults: Autodetected InternalDevice %s", intdev );
 	    	g_hash_table_insert( conf, (gpointer)"InternalDevice", (gpointer)intdev );
 		} else
-	    g_error( "No InternalDevice detected!" );
+	    g_error( "set_network_defaults: No InternalDevice detected!" );
     }
     
     if (g_hash_table_lookup(conf, "LocalNetwork") == NULL) {
 		localnet = get_network_address(intdev);
 		if (localnet) {
-	    	g_message( "Autodetected LocalNetwork %s", localnet );
+	    	g_message( "set_network_defaults: Autodetected LocalNetwork %s", localnet );
 	    	g_hash_table_insert( conf, (gpointer)"LocalNetwork", (gpointer)localnet );
 		} else
-	    g_error( "No LocalNetwork detected!" );
+	    g_error( "set_network_defaults: No LocalNetwork detected!" );
     }
     
     if (g_hash_table_lookup(conf, "NodeID") == NULL) {
 	mac = get_mac_address(intdev);
 	if (mac) {
 	    g_hash_table_insert(conf, (gpointer)"NodeID", (gpointer)mac);
-	    g_message( "My node ID is %s (%s)", mac, intdev);
+	    g_message( "set_network_defaults: My node ID is %s (%s)", mac, intdev);
 	} else
-	    g_warning( "No NodeID discernable from MAC address!" );
+	    g_warning( "set_network_defaults: No NodeID discernable from MAC address!" );
     }
 }
 
@@ -142,14 +142,14 @@ GHashTable *read_conf_file( const gchar *path ) {
 	return NULL;
     
     if (nocat_conf != NULL) {
-	g_warning("Reloading configuration from %s!", path);
-	g_free(nocat_conf);
+		g_warning("read_conf_file: Reloading configuration from %s!", path);
+		g_free(nocat_conf);
     }
 
     nocat_conf = parse_conf_string( file );
     set_conf_defaults( nocat_conf, default_conf );
 
-    //g_message( "Read %d config items from %s", g_hash_table_size(nocat_conf), path ); 
+    //g_message( "read_conf_file: Read %d config items from %s", g_hash_table_size(nocat_conf), path ); 
     g_free( file );
     return nocat_conf;
 }
@@ -168,7 +168,7 @@ gchar *conf_string( GHashTable *conf, const gchar *key ){
 	//g_assert( conf != NULL );
 
 	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
-	if (val == NULL) g_warning("Missing required configuration directive '%s'", key);
+	if (val == NULL) g_warning("conf_string: Missing required configuration directive '%s'", key);
 	return val;
 }
 
@@ -188,10 +188,10 @@ glong conf_int( GHashTable *conf, const gchar *key ) {
 	g_assert( conf != NULL );/* added by abp*/
 
 	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
-	if (val == NULL) g_warning("Missing required configuration directive '%s'", key);
+	if (val == NULL) g_warning("conf_int: Missing required configuration directive '%s'", key);
 
 	vint = strtol( val, &err, 10 );
-	if ( err != NULL && *err != '\0' ) g_warning("Invalid numeric configuration directive '%s': %s", key, val );
+	if ( err != NULL && *err != '\0' ) g_warning("conf_int: Invalid numeric configuration directive '%s': %s", key, val );
 
 	return vint;
 }
@@ -212,10 +212,10 @@ gdouble conf_float( GHashTable *conf, const gchar *key ) {
 	g_assert( conf != NULL );/* added by abp*/
 
 	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
-	if (val == NULL) g_warning("Missing required configuration directive '%s'", key);
+	if (val == NULL) g_warning("conf_float: Missing required configuration directive '%s'", key);
 
 	vdbl = strtod( val, &err );
 	if ( err != NULL && *err != '\0' )
-	g_warning("Invalid numeric configuration directive '%s': %s", key, val );
+	g_warning("conf_float: Invalid numeric configuration directive '%s': %s", key, val );
 	return vdbl;
 }

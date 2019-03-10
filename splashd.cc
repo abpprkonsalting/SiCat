@@ -12,23 +12,23 @@ gboolean show_socket_pairs(gchar* function_name, http_request *h){
 	fd = g_io_channel_unix_get_fd(h->sock);
 
 	r = getsockname (fd, (struct sockaddr *)&local_addr,  &n );
-	if (r == -1) { g_error( "getsockname on socket_big failed: %m" ); }
+	if (r == -1) { g_debug( "%s: getsockname failed: %m",function_name ); }
 
 	local_port = local_addr.sin_port;
 
 	r2 = (gchar*)inet_ntop( AF_INET, &local_addr.sin_addr, localaddr_ip, INET_ADDRSTRLEN );
-    	g_assert( r2 != NULL );
+    	//g_assert( r2 != NULL );
 
 	n = sizeof(struct sockaddr_in);
 	r = getpeername (fd, (struct sockaddr *)&remote_addr,  &n );
-	if (r == -1) { g_error( "getsockname on socket_small failed: %m" );}
+	if (r == -1) { g_debug( "%s: getpeername failed: %m",function_name );}
 
 	remote_port = remote_addr.sin_port;
 
 	r2 = (gchar*)inet_ntop( AF_INET, &remote_addr.sin_addr, remoteaddr_ip, INET_ADDRSTRLEN );
-    	g_assert( r2 != NULL );
+    	//g_assert( r2 != NULL );
 
-	g_message( "%s : fd = %d --- remote address = %s:%d --- local address = %s:%d",
+	g_debug( "%s: fd = %d -- remote address = %s:%d -- local address = %s:%d",
 			function_name , fd, remoteaddr_ip, remote_port, localaddr_ip, local_port);
 
 	return TRUE;
@@ -40,7 +40,6 @@ gboolean show_socket_pairs(gchar* function_name, http_request *h){
 gboolean check_peers( void *dummy ) {
 
 	time_t now = time(NULL);
-	//g_message("Checking peers for expiration");
 	g_hash_table_foreach_remove( peer_tab, (GHRFunc)check_peer_expire, &now );
 	return TRUE;
 }
@@ -49,35 +48,32 @@ gboolean check_peers( void *dummy ) {
 
 /************* Read Input Data Connection handle *******/
 gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
-
-	//peer* p;
 	
-	//if (!(h->is_used)){
-		
-		//show_socket_pairs((char*)"entering http_request_read with", h);
-    	
-		if (http_request_read(h) != 0){
+	//show_socket_pairs((char*)"handle_read", h);
+	g_debug("handle_read: reading request fd = %d",g_io_channel_unix_get_fd (h->sock));
+	
+	guint r;
+	
+	r= http_request_read(h);
+	
+	if (r == 1){
 
-			if (!http_request_ok(h)){
-					
-				return TRUE;
-			}
-			else {
-				
-				//h->is_used = TRUE;
-				if (handle_request(h) == 0) return FALSE;
-				
-			}
+		http_request_ok(h);
 			
-		}
+		if (handle_request(h) == 0) return FALSE;
+	
+	}
+	else if (r == 0) {
 		
-		//g_message("shutdown fd = %d",g_io_channel_unix_get_fd (h->sock));
+		return TRUE;
+	}
+	
+	g_debug("handle_read: shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
 
-		g_io_channel_shutdown(h->sock,FALSE,NULL);
-		//g_io_channel_unref( h->sock );
-		//requests->remove(h);
-		http_request_free (h);
-	/*}*/
+	g_io_channel_shutdown(h->sock,TRUE,NULL);
+	g_io_channel_unref( h->sock );
+	//requests->remove(h);
+	http_request_free (h);
 
 	return FALSE;
 }
@@ -105,30 +101,30 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
     r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
 
 	//if (r == -1) g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
-	
-	//n = fcntl( fd, F_GETFL, 0 );
-    //if (n == -1) g_error("fcntl F_GETFL on %s: %m", ip );
-    //g_message("n again = %d",n);
-    //g_message("O_NONBLOCK modified again = %d",n & O_NONBLOCK);
     
     mypid = getpid();
     r = fcntl( fd, F_SETOWN, mypid);
 	
 	conn = g_io_channel_unix_new( fd );
 	
-	g_io_channel_set_encoding(conn,NULL,&gerror);
-	if (gerror != NULL) g_message(gerror->message);
+	//g_io_channel_set_encoding(conn,NULL,&gerror);
+	//if (gerror != NULL) g_message(gerror->message);
 	
-	req  = http_request_new( conn );
+	g_io_channel_set_close_on_unref(conn,TRUE);
+	g_io_channel_set_buffer_size(conn,4096);
+	
+	req  = http_request_new( conn, fd );
 	//req = requests->add(conn);
-
-	//show_socket_pairs((char*)"handle_accept", req);	
 	
-	if (req != NULL) g_io_add_watch( conn, G_IO_IN, (GIOFunc) handle_read, req );
+	if (req != NULL){
+		
+		show_socket_pairs((char*)"handle_accept", req);
+		g_io_add_watch( conn, G_IO_IN, (GIOFunc) handle_read, req );
+	}
 	else {
 		
 		g_io_channel_shutdown(conn,FALSE,NULL);
-		g_io_channel_unref( conn );
+		g_io_channel_unref(conn);
 		
 	}
 	return TRUE;
@@ -145,7 +141,7 @@ gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
 
 	/* The line below need to be substituted by other error checking method that don't break daemon execution*/
-	g_assert( fd != -1 );
+	//g_assert( fd != -1 );
 	
 	n = fcntl( fd, F_GETFL, 0 );
     //if (n == -1) g_error("fcntl F_GETFL on %s: %m", ip );
@@ -156,21 +152,18 @@ gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
     r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
 
 	//if (r == -1) g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
-	
-	//n = fcntl( fd, F_GETFL, 0 );
-    //if (n == -1) g_error("fcntl F_GETFL on %s: %m", ip );
-    //g_message("n again = %d",n);
-    //g_message("O_NONBLOCK modified again = %d",n & O_NONBLOCK);
     
     mypid = getpid();
     r = fcntl( fd, F_SETOWN, mypid);
 	
 	conn = g_io_channel_unix_new( fd );
 	
-	g_io_channel_set_encoding(conn,NULL,&gerror);
-	if (gerror != NULL) g_message(gerror->message);
+	//g_io_channel_set_encoding(conn,NULL,&gerror);
+	//if (gerror != NULL) g_message(gerror->message);
 	
-	req  = http_request_new6( conn );
+	g_io_channel_set_close_on_unref(conn,TRUE);
+	
+	req  = http_request_new6( conn, fd );
 	//req = requests->add6(conn);
 
 	//show_socket_pairs((char*)"handle_accept", req);	
@@ -180,6 +173,7 @@ gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 		
 		g_io_channel_shutdown(conn,FALSE,NULL);
 		g_io_channel_unref( conn );
+		return FALSE;
 		
 	}
 	return TRUE;
@@ -188,16 +182,9 @@ gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 
 gboolean check_exit_signal ( GMainLoop *loop ) {
 	
-	/*if (wsk_wants_close){
-		if (wsk_comm_interface->wsi_dumb == NULL) g_message("wsi = NULL en check_exit_signal");
-		else {
-			g_message("wsi_exit = %d", (unsigned int)wsk_comm_interface->wsi_dumb);
-			//wsk_wants_close = false;
-		}
-	}*/
-	
+    //printf("checking exit signal..");
     if (exit_signal) {
-	g_message( "Caught exit signal %d!", exit_signal );
+	g_message( "check_exit_signal: Caught exit signal %d!", exit_signal );
 	if (pid_file != NULL) {
 	    unlink( NC_PID_FILE );
 	    fclose( pid_file );
@@ -221,7 +208,7 @@ void signal_handler( int sig ) {
 	    /*log_message(LOG_FILE,"hangup signal caught");*/
 	    break;
 	case SIGURG:
-		g_message("out of band data arrived");
+		g_message("signal_handler: out of band data arrived");
 		break;
     }
 }
@@ -235,7 +222,7 @@ void daemonize(void) {
 	r = fork();
 	if (r<0) 
 	{
-		g_message( "fork error");
+		g_message( "daemonize: fork error");
 		exit(1); /* fork error */
 	}
 	if (r>0)	//This is the return of fork for the parent process, the pid of the child
@@ -308,6 +295,11 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
 	       const gchar* message, gpointer user_data) {
 
     int priority;
+    size_t message_len = 0;
+    div_t result;
+    unsigned int t = 1;
+	gchar* message_part = NULL;
+	unsigned int width = (unsigned int) CONFd("llwidth");
 
     switch (log_level & G_LOG_LEVEL_MASK) {
 		case G_LOG_LEVEL_ERROR:	    priority = LOG_ERR;	    break;
@@ -316,21 +308,61 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
 		case G_LOG_LEVEL_MESSAGE:   priority = LOG_NOTICE;  break;
 		case G_LOG_LEVEL_INFO:	    priority = LOG_INFO;    break;
 		case G_LOG_LEVEL_DEBUG:	    
-	default:		    priority = LOG_DEBUG;   break;
+		default:		    		priority = LOG_DEBUG;   break;
 				
     }
-
-    syslog( priority | LOG_DAEMON, message );
+	message_len = strlen(message);
+	
+	if ( message_len > width ) {
+		
+		result = div(message_len,width);
+		t = result.quot;
+		if (result.rem > 0) t = t + 1;
+	}
+	
+	for (unsigned int i = 0; i < t; i++){
+		
+		message_part = g_new0(gchar,width + 2);
+		strncpy (message_part,message+(i*width),width);
+		syslog( priority | LOG_DAEMON, "%s", message_part);
+		g_free(message_part);
+	}
+	
+    //syslog( priority | LOG_DAEMON, message );
 
     if (log_level & G_LOG_FLAG_FATAL) exit_signal = -1;
 }
 
 void initialize_log (void) 
 {
+	int level;
+	
 	if (strncmp( CONF("LogFacility"), "syslog", 6 ) == 0)
 	{
+		unsigned int wsk_log_level = CONFd("wsk_log_level");
+		
+		switch (wsk_log_level){
+			
+			case 1:
+				level = G_LOG_LEVEL_ERROR;
+				break;
+			case 3:
+				level = (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_WARNING);
+				break;
+			case 7:
+				level = (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_MESSAGE);
+				break;
+			case 15:
+				level = (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_MESSAGE | G_LOG_LEVEL_INFO);
+				break;
+			case 31:
+			default:
+				level = (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_MESSAGE | G_LOG_LEVEL_INFO | G_LOG_LEVEL_DEBUG);
+				break;
+		}
+
 		openlog(CONF("SyslogIdent"), LOG_CONS | LOG_PID, LOG_DAEMON );	
-		g_log_set_handler( 0,(GLogLevelFlags)(G_LOG_LEVEL_MASK | G_LOG_FLAG_RECURSION | G_LOG_FLAG_FATAL),g_syslog,0);
+		g_log_set_handler( 0,(GLogLevelFlags)(level | G_LOG_FLAG_RECURSION | G_LOG_FLAG_FATAL),g_syslog,0);
 	}
 }
 
@@ -347,7 +379,7 @@ int main(int argc, char** argv)
 	
 	if (nocat_conf == NULL) {
 		
-		g_error("could not read the config file, aborting program...");
+		//g_error("could not read the config file, aborting program...");
 		return -1;
 	}
 	
@@ -356,7 +388,7 @@ int main(int argc, char** argv)
 	/* initalize the log */
 
 	initialize_log();
-	
+
 	/* set network parameters */
 	set_network_defaults(nocat_conf);
 
@@ -395,11 +427,11 @@ int main(int argc, char** argv)
 	
 	wsk_comm_interface = NULL;
 	
-	if (!CONFd("nowsk")){
+	if (CONFd("usewsk")){
 		wsk_comm_interface = new class comm_interface();
 		if (wsk_comm_interface == NULL){
 		
-			g_error("websocket initialization error, aborting program...");
+			g_error("main: websocket initialization error, aborting program...");
 			return -1;
 		}
 	}
@@ -407,18 +439,17 @@ int main(int argc, char** argv)
 	//requests = g_new0(h_requests,1);
 
 	/* initialize the main loop and handlers */
-	loop = g_main_loop_new(NULL,FALSE);//
+	loop = g_main_loop_new(NULL,FALSE);
 
-	//g_io_add_watch( sock, G_IO_IN, (GIOFunc) handle_accept, &requests_count );
 	g_io_add_watch( sock, G_IO_IN, (GIOFunc) handle_accept,NULL);
 	if (CONFd("IPv6")) g_io_add_watch( sock6, G_IO_IN, (GIOFunc) handle_accept6,NULL);
 	g_timeout_add( 30000, (GSourceFunc) check_peers, NULL );
 	g_timeout_add( 1000, (GSourceFunc) check_exit_signal, loop );
     
 	/* Go! */
-	g_message("starting main loop");
+	g_message("main: starting main loop");
 	g_main_run( loop );
-	g_message("exiting main loop");
+	g_message("main: exiting main loop");
 	
 	return 0;
 }

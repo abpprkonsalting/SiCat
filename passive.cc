@@ -23,10 +23,6 @@ void capture_peer ( http_request *h ) {
 
     http_send_redirect( h, dest, NULL );
 
-    //g_message( "Captured peer %s", h->peer_ip );
-    
-    //g_message( "dest: %s", dest);
-
     g_free( orig  );
     g_free( redir );
     g_free( dest  );
@@ -44,52 +40,66 @@ int handle_request( http_request *h ) {
 	if (*(h->peer_ip) != 0)	p = find_peer(h->peer_ip);
 	else p = find_peer(h->peer_ip6);
 	
-    gchar *hostname = HEADER("Host");
-    gchar *sockname = local_host(h);
+	/*if (p->status != 1) {
+		
+		// El peer ya está aceptado, por lo tanto esto es un sombie que quedó colgado.
+		
+		GString *hdr = g_string_new("");
+    	GIOError r;
+    	int n;
+    	
+    	g_string_append_printf(hdr, "HTTP/1.1 %d %s\r\n%s%s%s\r\n\r\n", 302,"Moved","Location: http://",HEADER("Host"),h->uri_orig);
+    	g_debug("handle_request: redirect sent to sombie: ,%s",hdr->str);
+    	
+    	r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
+    
+    	if (*(h->sock_ip) != 0) g_debug ("sent header: %s to peer %s",hdr->str, h->peer_ip);
+    	else g_debug ("sent header: %s to peer %s",hdr->str, h->peer_ip6);
+    
+    	g_string_free( hdr, 1 );
+    	
+	}
+	else {*/
+	
+		gchar *hostname = HEADER("Host");
+		gchar *sockname = local_host(h);
 
-    //g_assert( sockname != NULL );
+		if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
 
-    if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
-
-		capture_peer(h);
-    }
-    else if (strcmp( h->uri, "/" ) == 0) {
-
-		if ( QUERY("mode_login") != NULL || QUERY("mode_login.x") != NULL ) {
-			
-			//accept_peer(h);
-			//sleep(2);
-			//http_send_redirect( h, QUERY("redirect"),NULL );
-			
-			if (p->status != 2) {
-			
-				p->status = 2;
-				//h->perm = FALSE;
-				//g_message("peer en proceso de autentificación, permitiendolo por el grace period...");
-				peer_permit (nocat_conf,p,h);
-				g_free( sockname );
-				return 0;
-			}
-			
-			
-		}
-		else if ( QUERY("redirect") != NULL ) {
-			
-			splash_peer(h);
-		} 
-		else {
-			
 			capture_peer(h);
 		}
-    }
-    /*else if (strcmp( h->uri, "/status" ) == 0) {
-		status_page( h );
-    }*/ 
-    else {
-		http_serve_file( h, CONF("DocumentRoot") );
-    }
+		else if (strcmp( h->uri, "/" ) == 0) {
 
-    g_free( sockname );
+			if ( QUERY("mode_login") != NULL || QUERY("mode_login.x") != NULL ) {
+				
+				if (p->status != 2) {
+				
+					p->status = 2;
+					//requests->get_ride_of_sombies();
+					if (*(h->peer_ip) != 0) g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip);
+					else g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip6);
+					peer_permit (nocat_conf,p,h);
+					g_free( sockname );
+					return 0;
+				}
+				
+				
+			}
+			else if ( QUERY("redirect") != NULL ) {
+				
+				splash_peer(h);
+			} 
+			else {
+				
+				capture_peer(h);
+			}
+		}
+		else {
+			http_serve_file( h, CONF("DocumentRoot") );
+		}
+
+		g_free(sockname);
+	/*}*/
     return 1;
 }
 
@@ -111,7 +121,7 @@ void splash_peer ( http_request *h ) {
 	if (file != NULL) {
 		
 		r = http_serve_template( h, file, data1 );
-		//g_message( "Splashed peer %s", h->peer_ip );
+		g_debug( "splash_peer: peer %s splashed", h->peer_ip );
 	}
 
     g_hash_free( data1 );

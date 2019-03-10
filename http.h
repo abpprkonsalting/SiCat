@@ -6,6 +6,7 @@
 
 typedef struct {
     gchar* uri;
+    gchar* uri_orig;
     gchar* method;
     GHashTable* header;				// Llenado en http_request_read()
     GHashTable* query;				// Llenado en http_request_ok()
@@ -17,9 +18,11 @@ typedef struct {
     gchar peer_ip6[50];
     gchar sock_ip[16];				// Inicializado en http_request_new()
     gchar sock_ip6[50];
+    gboolean is_used;
 } http_request;
 
 typedef struct peer_st {
+	
     char ip[50]; /* 111.222.333.444, incluyendo además espacio para direcciones ipv6 */
     char hw[18]; /* 11:22:33:44:55:66 */
     char token[35];
@@ -37,11 +40,31 @@ typedef struct peer_st {
     
 } peer;
 
+class h_requests {
+
+	unsigned int cantidad;
+	
+	public:
+	
+	http_request** items;
+	
+	h_requests();
+	~h_requests();
+	
+	http_request* add(GIOChannel* sock);
+	http_request* add6(GIOChannel* sock);
+	void remove(http_request* h);
+	http_request* get(unsigned int index);
+	int get_index(http_request* h);
+	void get_ride_of_sombies();
+	
+};
+
 /*** Function prototypes start here ***/
 GIOChannel* http_bind_socket( const char *ip, int port, int queue );
 GIOChannel *http_bind_socket6( const char *ip, int port, int queue );
-http_request* http_request_new ( GIOChannel *sock );
-http_request* http_request_new6 ( GIOChannel *sock );
+http_request* http_request_new ( GIOChannel *sock,int fd );
+http_request* http_request_new6 ( GIOChannel* sock,int fd  );
 void http_request_free ( http_request *h );
 GHashTable* parse_query_string( gchar *query );
 GHashTable* http_parse_header (http_request *h, gchar *req);

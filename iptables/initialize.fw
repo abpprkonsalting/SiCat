@@ -49,42 +49,41 @@ iptables -t mangle -F
 iptables -t mangle -X
 
 
-
 # Flush all user-defined chains
 #
-iptables -t filter -N NoCat 2>/dev/null
+iptables -t filter -N NoCat
 iptables -t filter -F NoCat
-iptables -t filter -D FORWARD -j NoCat 2>/dev/null
+iptables -t filter -D FORWARD -j NoCat
 iptables -t filter -A FORWARD -j NoCat
 
-iptables -t filter -N NoCat_Ports 2>/dev/null
+iptables -t filter -N NoCat_Ports
 iptables -t filter -F NoCat_Ports
-iptables -t filter -D NoCat -j NoCat_Ports 2>/dev/null
+iptables -t filter -D NoCat -j NoCat_Ports
 iptables -t filter -A NoCat -j NoCat_Ports
 
-iptables -t filter -N NoCat_Inbound 2>/dev/null
+iptables -t filter -N NoCat_Inbound
 iptables -t filter -F NoCat_Inbound
-iptables -t filter -D NoCat -j NoCat_Inbound 2>/dev/null
+iptables -t filter -D NoCat -j NoCat_Inbound
 iptables -t filter -A NoCat -j NoCat_Inbound
 
-iptables -t nat -N NoCat_Capture 2>/dev/null
+iptables -t nat -N NoCat_Capture
 iptables -t nat -F NoCat_Capture
-iptables -t nat -D PREROUTING -j NoCat_Capture 2>/dev/null
+iptables -t nat -D PREROUTING -j NoCat_Capture
 iptables -t nat -A PREROUTING -j NoCat_Capture
 
-iptables -t nat -N NoCat_NAT 2>/dev/null
+iptables -t nat -N NoCat_NAT
 iptables -t nat -F NoCat_NAT
 
 #
 # Only nat if we're not routing
 #
-iptables -t nat -D POSTROUTING -j NoCat_NAT 2>/dev/null
+iptables -t nat -D POSTROUTING -j NoCat_NAT
 [ "$RouteOnly" ] || iptables -t nat -A POSTROUTING -j NoCat_NAT
 #iptables -t nat -A POSTROUTING -j NoCat_NAT
 
-iptables -t mangle -N NoCat 2>/dev/null
+iptables -t mangle -N NoCat
 iptables -t mangle -F NoCat
-iptables -t mangle -D PREROUTING -j NoCat 2>/dev/null
+iptables -t mangle -D PREROUTING -j NoCat
 iptables -t mangle -A PREROUTING -j NoCat
 
 fwd="iptables	    -t filter -A NoCat"

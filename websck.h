@@ -11,22 +11,6 @@
 #define MFRAME 1
 #endif
 
-class files_array {
-
-	unsigned int cant;
-	GIOChannel** items;
-	
-	public:
-	
-	files_array();
-	~files_array();
-	
-	void add_file(int fd);
-	void remove_chann(GIOChannel *channel);
-	GIOChannel* get_item(int fd);
-	
-};
-
 enum STATUSES {
 	WSK_DISCONNECTED,
 	WSK_WAITING_CONFIRM,

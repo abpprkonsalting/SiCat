@@ -75,7 +75,7 @@ gchar* get_mac_address (const gchar *dev) {
 
     r = ioctl( s, SIOCGIFHWADDR, &ifr );
     if (r == -1) {
-		g_warning("SIOCGIFHWADDR: %m");
+		g_warning("get_mac_address: SIOCGIFHWADDR: %m");
 		g_free(dest);
 		close(s);
 		return NULL;
@@ -111,7 +111,7 @@ gchar* get_network_address (const gchar *dev) {
     strncpy( ifaddr.ifr_name, dev, IFNAMSIZ );
     r = ioctl( s, SIOCGIFADDR, &ifaddr );
     if (r == -1) {
-		g_warning("SIOCGIFADDR: %m");
+		g_warning("get_network_address: SIOCGIFADDR: %m");
 		g_free(dest);
 		close(s);
 		return NULL;
@@ -120,7 +120,7 @@ gchar* get_network_address (const gchar *dev) {
     strncpy( ifnetmask.ifr_name, dev, IFNAMSIZ );
     r = ioctl( s, SIOCGIFNETMASK, &ifnetmask );
     if (r == -1) {
-		g_warning("SIOCGIFNETMASK: %m");
+		g_warning("get_network_address: SIOCGIFNETMASK: %m");
 		g_free(dest);
 		close(s);
 		return NULL;
@@ -149,19 +149,18 @@ gchar* detect_network_device ( const gchar *exclude ) {
     FILE *route;
 
     route = fopen( "/proc/net/route", "r" );
-    if ( route == NULL ){g_error( "Can't open /proc/net/route: %m" );}
+    if ( route == NULL ){g_error( "detect_network_device: Can't open /proc/net/route: %m" );}
     
     // Skip first line 
     fscanf(route, "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s"); 
 
-    while (fscanf( route, 
-	"%6s %8s %*s %*s %*s %*s %*s %*s %*s %*s %*s\n", dev, dest ) != EOF) {
-	if ( exclude ? 
-		(strncmp( dev, exclude, 6 ) != 0) :   // not the whatever it is
-		(strcmp( dest, "00000000" ) == 0) ) { // default route
-	    out = g_strdup(dev);
-	    break;
-	}
+    while (fscanf( route, "%6s %8s %*s %*s %*s %*s %*s %*s %*s %*s %*s\n", dev, dest ) != EOF) {
+		if ( exclude ? 
+			(strncmp( dev, exclude, 6 ) != 0) :   // not the whatever it is
+			(strcmp( dest, "00000000" ) == 0) ) { // default route
+			out = g_strdup(dev);
+			break;
+		}
     }
 
     fclose( route );
