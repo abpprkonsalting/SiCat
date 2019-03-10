@@ -1,4 +1,16 @@
 # include <glib.h>
+# include <ctype.h>
+# include <string.h>
+# include <fcntl.h>
+# include <unistd.h>
+# include <stdio.h>
+# include <stdlib.h>
+# include <sys/stat.h>
+# include <sys/socket.h>
+# include <sys/mman.h>
+# include <netinet/in.h>
+# include <arpa/inet.h>
+# include <crypt.h>
 
 # ifndef g_debug
 # ifdef DEBUG

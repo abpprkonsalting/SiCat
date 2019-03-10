@@ -12,6 +12,9 @@
 # include <unistd.h>
 # include <libwebsockets.h>
 
+//# include "gateway.h"
+# include "config.h"
+
 enum demo_protocols {
 
 	PROTOCOL_AUTHENTICATION,
@@ -19,21 +22,29 @@ enum demo_protocols {
 	DEMO_PROTOCOL_COUNT
 };
 
-static int 
-callback_authentication(struct libwebsocket_context * this, struct libwebsocket *wsi, enum libwebsocket_callback_reasons reason, 
-			void *user, void *in, size_t len);
+int callback_authentication(struct libwebsocket_context* thi, struct libwebsocket* wsi, enum libwebsocket_callback_reasons reason, 
+			void* user, void* in, size_t len);
 
-/* list of supported protocols and callbacks  
+ /*list of supported protocols and callbacks  */
 static struct libwebsocket_protocols protocols[] = { 
 	{ 
 		"authentication_protocol",
 		callback_authentication,
-		0, 
+		0,
+		4096, 
 
 	}, 
-	{ /* end of list 
+	{ /* end of list */
 		NULL, 
 		NULL, 
-		0 
+		0,
+		0
 	}
-};*/
+};
+
+struct libwebsocket_context* wsk_create_context(void);
+
+struct libwebsocket* wsk_client_connect (struct libwebsocket_context* context, time_t* connection_time);
+
+
+

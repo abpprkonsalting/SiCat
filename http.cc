@@ -14,7 +14,10 @@
 # include "http.h"
 # include "mime.h"
 
+/*Modifications added by abp*/
+
 GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
+ 
     struct sockaddr_in addr;
     int fd, r, n = 1;
     
@@ -48,7 +51,7 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
 
     r = fcntl( fd, F_SETFL, n | O_NDELAY );
 
-	/* aparently there is an error here, we should check r, not n
+	/* abp: aparently there is an error here, we should check r, not n
     if (n == -1)*/
 
 	if (r == -1)	g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
@@ -81,12 +84,12 @@ http_request *http_request_new ( GIOChannel *sock ) {
     h->sock   = sock;
     h->buffer = g_string_new("");
 
-    r = getsockname( fd, (struct sockaddr *)&addr, &n );
+    r = getsockname( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
     if (r == -1) g_error( "getsockname failed: %m" );
     r2 = inet_ntop( AF_INET, &addr.sin_addr, h->sock_ip, INET_ADDRSTRLEN );
     g_assert( r2 != NULL );
 
-    r = getpeername( fd, (struct sockaddr *)&addr, &n );
+    r = getpeername( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
     if (r == -1)
 	g_error( "getpeername failed: %m" );
     r2 = inet_ntop( AF_INET, &addr.sin_addr, h->peer_ip, INET_ADDRSTRLEN );
@@ -122,7 +125,7 @@ GHashTable *parse_query_string( gchar *query ) {
 	if (val != NULL)
 	    *(val++) = '\0';
 	else
-	    val = "1";
+	    val = (gchar*)"1";
 
 	key = url_decode( key );	
 	val = url_decode( val );	
@@ -335,7 +338,7 @@ GIOError http_send_header ( http_request *h, int status, const gchar *msg ) {
     g_hash_table_foreach( h->response, (GHFunc) http_compose_header, hdr );
     g_string_append( hdr, "\r\n" );
     g_debug("Header out: %s", hdr->str);
-    r = g_io_channel_write( h->sock, hdr->str, hdr->len, &n );
+    r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
     g_string_free( hdr, 1 );
     return r;
 }
@@ -376,10 +379,11 @@ gchar *http_mime_type (const gchar *path) {
 		return mime_types[i].type;
 	}
 
-    return "text/plain";
+    return (gchar*)"text/plain";
 } 
 
 int http_open_file (const gchar *path, int *status) {
+	
     int fd;
 
     fd = open( path, O_RDONLY );
@@ -402,7 +406,7 @@ int http_open_file (const gchar *path, int *status) {
 
 int http_serve_file ( http_request *h, const gchar *docroot ) {
     gchar *path;
-    guint fd, status;
+    int fd, status;
 
     path = http_fix_path( h->uri, docroot );
     fd   = http_open_file( path, &status );
@@ -425,7 +429,7 @@ int http_serve_template ( http_request *h, gchar *file, GHashTable *data ) {
     form = parse_template( file, data );
     n = strlen(form);
 
-    http_add_header( h, "Content-Type", "text/html" );
+    http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
     http_send_header( h, 200, "OK" );
 
     r = g_io_channel_write( h->sock, form, n, &n );

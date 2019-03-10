@@ -1,16 +1,3 @@
-# include <glib.h>
-# include <ctype.h>
-# include <string.h>
-# include <fcntl.h>
-# include <unistd.h>
-# include <stdio.h>
-# include <stdlib.h>
-# include <crypt.h>
-# include <sys/stat.h>
-# include <sys/socket.h>
-# include <sys/mman.h>
-# include <netinet/in.h>
-# include <arpa/inet.h>
 # include "util.h"
 # include "config.h"
 
@@ -195,7 +182,7 @@ gchar *load_file( const char *path ) {
     data = mmap( NULL, s.st_size, PROT_READ, MAP_SHARED, fd, 0 );
     g_assert( data != MAP_FAILED );
 
-    file = g_strndup( data, s.st_size );
+    file = g_strndup( (gchar*)data, s.st_size );
     g_assert( file != NULL );
 
     r = munmap( data, s.st_size );
@@ -232,7 +219,7 @@ gchar *parse_template( gchar *src, GHashTable *data ) {
 	    // Having found it, copy the variable name out
 	    // and get the corresponding value.
 	    var = g_strndup( src + 1, --n );
-	    val = g_hash_table_lookup( data, var );
+	    val = (gchar*) g_hash_table_lookup( data, var );
 	    if (val)
 		g_string_append(dest, val);
 	    g_free(var);
@@ -251,7 +238,7 @@ gchar *parse_template( gchar *src, GHashTable *data ) {
 
 /**** crypt-type functions *********/
 
-# ifdef HAVE_LIBCRYPT
+//# ifdef HAVE_LIBCRYPT
 
 static char salt_chars[] = 
     "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ./";
@@ -276,7 +263,8 @@ gchar *md5_crypt( const gchar *src, gchar *salt ) {
     salt2[11] = '\0';
     
     hash = g_strdup( crypt(src, salt2) );
+	//hash = NULL;
     return hash;
 }
 
-# endif /* HAVE_LIBCRYPT */
+//# endif /* HAVE_LIBCRYPT */

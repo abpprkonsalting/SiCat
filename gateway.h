@@ -1,7 +1,6 @@
 # include "http.h"
-# include "conf.h"
-# include "util.h"
 # include "firewall.h"
+//# include "websck.h"
 
 gchar *target_redirect ( http_request *h );
 gchar *local_host( http_request *h );

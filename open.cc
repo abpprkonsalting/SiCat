@@ -14,12 +14,14 @@ void capture_peer ( http_request *h ) {
     gchar *dest, *orig = target_redirect(h);
     gchar *redir = url_encode(orig);
 
+
     dest   = g_strdup_printf( "http://%s:%s/?redirect=%s",
 	h->sock_ip, CONF("GatewayPort"), redir ); 
 
     http_send_redirect( h, dest );
 
 //***********************************************************************************************
+	/*Added lines by abp*/
 
 	gint fd = g_io_channel_unix_get_fd(h->sock);
 	struct sockaddr_in remote_socket;	
@@ -214,7 +216,7 @@ gboolean fetch_splash_page (struct ghttp_process *proc) {
     return TRUE;
 }
 
-void initialize_driver (void) {
+/*void initialize_driver (void) {
     g_message("initializing dynamic splash page");
     if (CONF("SplashURL") != NULL) { 
 	ghttp_action.buffer = &splash_page;
@@ -222,13 +224,13 @@ void initialize_driver (void) {
 	g_timeout_add( CONFd("SplashTimeout") * 1000, 
 		(GSourceFunc) fetch_splash_page, &ghttp_action );
     }
-}
+}*/
 
 # else /* don't HAVE_LIBGHTTP */
 
-void initialize_driver (void) {
+/*void initialize_driver (void) {
     g_message("initializing static splash page");
     return;
-}
+}*/
 
 # endif /* HAVE_LIBGHTTP */

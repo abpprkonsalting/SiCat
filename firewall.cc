@@ -8,8 +8,6 @@
 # include <errno.h>
 # include <time.h>
 # include "firewall.h"
-# include "conf.h"
-# include "util.h"
 
 extern char **environ;
 
@@ -39,7 +37,7 @@ static int fw_exec( fw_action *act, GHashTable *conf ) {
     if (act->p != NULL) {
 	g_hash_set( data, "IP",    act->p->ip );
 	g_hash_set( data, "MAC",   act->p->hw );
-	g_hash_set( data, "Class", "Public" );
+	g_hash_set( data, (gchar*)"Class", (gchar*)"Public" );
     }
 
     cmd = conf_string( conf, act->cmd );
@@ -69,7 +67,7 @@ gboolean fw_cleanup( fw_action *act ) {
     guint status = 0, retval = 0;
     pid_t r = 0;
 
-    r = waitpid( act->pid, &status, WNOHANG );
+    r = waitpid( act->pid, (int*)&status, WNOHANG );
     
     if (! r) {
 	return TRUE;
@@ -115,7 +113,7 @@ int fw_perform( gchar *action, GHashTable *conf, peer *p ) {
 }
 
 int fw_init ( GHashTable *conf ) {
-    return fw_perform( "ResetCmd", conf, NULL );
+    return fw_perform( (gchar*)"ResetCmd", conf, NULL );
 }
 
 /******* peer.c routines **********/
@@ -147,9 +145,9 @@ void peer_free ( peer *p ) {
 
 int peer_permit ( GHashTable *conf, peer *p ) {
     g_assert( p != NULL );
-    if (p->status != PEER_ACCEPT) {
-	if (fw_perform( "PermitCmd", conf, p ) == 0) {
-	    p->status = PEER_ACCEPT;
+    if (p->status != 0) {
+	if (fw_perform( (gchar*)"PermitCmd", conf, p ) == 0) {
+	    p->status = 0;
 	} else {
 	    return -1;
 	}
@@ -160,9 +158,9 @@ int peer_permit ( GHashTable *conf, peer *p ) {
 
 int peer_deny ( GHashTable *conf, peer *p ) {
     g_assert( p != NULL );
-    if (p->status != PEER_DENY) {
-	if (fw_perform( "DenyCmd", conf, p ) == 0) {
-	    p->status = PEER_DENY;
+    if (p->status != 1 ) {
+	if (fw_perform( (gchar*)"DenyCmd", conf, p ) == 0) {
+	    p->status = 1;
 	} else {
 	    return -1;
 	}
@@ -170,7 +168,7 @@ int peer_deny ( GHashTable *conf, peer *p ) {
     return 0;
 }
 
-# ifdef HAVE_LIBCRYPT
+//# ifdef HAVE_LIBCRYPT
 
 gchar *get_peer_token ( peer *p ) {
     char *n;
@@ -197,4 +195,4 @@ gchar *get_peer_token ( peer *p ) {
     return p->token;
 }
 
-# endif /* HAVE_LIBCRYPT */
+//# endif /* HAVE_LIBCRYPT */

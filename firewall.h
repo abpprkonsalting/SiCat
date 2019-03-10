@@ -1,6 +1,9 @@
 # include <glib.h>
 # include <sys/time.h>
 
+# include "conf.h"
+# include "util.h"
+
 typedef struct peer_st {
     char ip[16]; /* 111.222.333.444   */
     char hw[18]; /* 11:22:33:44:55:66 */
@@ -8,7 +11,13 @@ typedef struct peer_st {
     char *request;
     time_t connected;
     time_t expire;
-    enum { PEER_DENY, PEER_ACCEPT } status;
+    
+    //enum { PEER_ACCEPT, PEER_DENY } status;	//Esto tuve que cambiarlo para la linea 
+    											//de abajo pues no me compilaba bien firewall.cc
+    											//PEER_ACCEPT = 0
+    											//PEER_DENY = 1
+    unsigned char status;
+    
 } peer;
 
 /*** Function prototypes start here ***/

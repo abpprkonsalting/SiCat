@@ -10,9 +10,7 @@
 # include <net/if.h>
 # include <netinet/in.h>
 
-# include "http.h"
-# include "firewall.h"
-# include "util.h"
+# include "linux.h"
 
 ssize_t http_sendfile ( http_request *h, int in_fd ) {
     int out_fd = g_io_channel_unix_get_fd( h->sock );
@@ -95,7 +93,6 @@ gchar *get_mac_address (const gchar *dev) {
     close(s);
     return dest;
 }
-
 
 gchar *get_network_address (const gchar *dev) {
     int r, s;

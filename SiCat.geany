@@ -1,0 +1,16 @@
+
+[project]
+name=SiCat
+base_path=/home/armando/SiCatProject/
+make_in_base_path=false
+description=
+run_cmd=
+
+[files]
+current_page=4
+FILE_NAME_0=9268087;20;0;0;1;1;0;/var/log/syslog;
+FILE_NAME_1=10171;13;0;16;1;1;0;/home/armando/SiCatProject/nocat.conf;
+FILE_NAME_2=2204;11;0;16;1;1;0;/home/armando/SiCatProject/Makefile;
+FILE_NAME_3=14311;1;0;16;1;1;0;/home/armando/SiCatProject/splashd.cc;
+FILE_NAME_4=15351;0;0;16;1;1;0;/home/armando/SiCatProject/splashd.h;
+FILE_NAME_5=0;1;0;16;1;1;0;/home/armando/SiCatProject/gateway.cc;

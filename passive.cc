@@ -22,21 +22,26 @@ void capture_peer ( http_request *h, peer *p ) {
     g_hash_set( args, "gateway",    gw_addr );
 
     dest = build_url( CONF("AuthServiceURL"), args );
+    
+// Here should be checked that the websocket connection is open, if not then open it and wait
+// until it's so, because we could not send nothing to the server until the conditions are set
+// to receive the answer from it (the websocket open)
+
+
     http_send_redirect( h, dest->str );
 
 //***********************************************************************************************
+	/*Added lines by abp*/
 
 	gint fd = g_io_channel_unix_get_fd(h->sock);
 	struct sockaddr_in remote_socket;	
-	int n = sizeof(struct sockaddr_in);
+	socklen_t n = sizeof(struct sockaddr_in);
 
 	getpeername (fd, (struct sockaddr *)&remote_socket,  &n );
 
 	g_message( "Captured peer %s:%d", h->peer_ip,remote_socket.sin_port );
 
 //***********************************************************************************************
-
-/*Over here should be inserted the connection with the auth server ?*/
 
     g_string_free( dest, 1 );
     g_hash_free( args );
@@ -144,7 +149,7 @@ int verify_peer( http_request *h, peer *p ) {
     // Set groups
     // Set token
 
-    action = g_hash_table_lookup(msg, "Action");
+    action = (gchar*) g_hash_table_lookup(msg, "Action");
     if (strcmp( action, "Permit" ) == 0) {
 	accept_peer( h );
     } else if (strcmp( action, "Deny" ) == 0) {
@@ -154,8 +159,8 @@ int verify_peer( http_request *h, peer *p ) {
     }
 
 
-    mode = g_hash_table_lookup(msg, "Mode");
-    dest = g_hash_table_lookup(msg, "Redirect"); 
+    mode = (gchar*)g_hash_table_lookup(msg,"Mode");
+    dest = (gchar*)g_hash_table_lookup(msg,"Redirect"); 
     if (strncmp(mode, "renew", 5) == 0) {
 	http_send_header( h, 304, "No Response" );
     } else {
@@ -193,6 +198,6 @@ void handle_request( http_request *h ) {
     g_free( sockname );
 }
 
-void initialize_driver (void) {
+/*void initialize_driver (void) {
     return;
-}
+}*/

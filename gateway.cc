@@ -9,6 +9,7 @@ unsigned long int total_connections = 0;
 time_t last_connection = 0;
 
 gchar *target_redirect ( http_request *h ) {
+	
     gchar *orig, *host   = HEADER("Host"); 
     
     if ( host != NULL ) {
@@ -27,13 +28,13 @@ gchar *local_host( http_request *h ) {
 
 /************* Permit and deny peers *************/
 
-peer *find_peer ( const char *ip ) {
-    peer *p; 
+peer* find_peer ( const char *ip ) {
+    peer* p; 
     
-    p = g_hash_table_lookup( peer_tab, ip );
+    p = (peer*) g_hash_table_lookup( peer_tab, ip );
     if (p == NULL) {
-	p = peer_new( nocat_conf, ip );
-	g_hash_table_insert( peer_tab, (gpointer) p->ip, p );
+		p = peer_new( nocat_conf, ip );
+		g_hash_table_insert( peer_tab, (gpointer) p->ip, p );
     }
     return p;
 }
@@ -116,7 +117,7 @@ void status_page ( http_request *h ) {
     g_free(conn);
 
     g_hash_set( status, "LastConnectionTime",
-		last_connection ? ctime(&last_connection) : "Never" );
+		last_connection ? ctime(&last_connection) : (gchar*)"Never" );
 
     /* still need UserTable */
     peers = g_string_sized_new(4096); 
