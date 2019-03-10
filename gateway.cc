@@ -30,7 +30,7 @@ gchar* local_host( http_request *h ) {
 
 /************* Permit and deny peers *************/
 
-peer* find_peer ( const char *ip, gboolean* new_peer ) {
+peer* find_peer ( const char *ip) {
 	
     peer* p; 
     
@@ -39,7 +39,6 @@ peer* find_peer ( const char *ip, gboolean* new_peer ) {
     if (p == NULL) {
 		p = peer_new( nocat_conf, ip );
 		g_hash_table_insert( peer_tab, (gpointer) p->ip, p );
-		*new_peer = TRUE;
     }
     return p;
 }
@@ -49,13 +48,13 @@ void accept_peer ( http_request *h ) {
     peer *p;
 	
 	gboolean no_importa;
-    p  = find_peer( h->peer_ip,&no_importa );
+    p  = find_peer( h->peer_ip);
     g_message( "Accepting peer %s", p->ip );
 
     total_connections++;
     time(&last_connection);
 
-    peer_permit( nocat_conf, p,NULL,NULL );
+    peer_permit( nocat_conf, p,NULL);
 }
 
 void remove_peer ( peer *p ) {
@@ -65,14 +64,18 @@ void remove_peer ( peer *p ) {
 }
 
 gboolean check_peer_expire ( gchar *ip, peer *p, time_t *now ) {
-    g_message( "Checking peer %s for expire: %ld sec. remain",ip, p->expire - *now );
-    if (p->expire <= *now) {
-		remove_peer( p );
-		return TRUE;
-    }
-    else {
-		return FALSE;
-    }
+	
+	if ((p->status == 0) || (p->status == 2)){
+    	g_message( "Checking peer %s for expire: %ld sec. remain",ip, p->expire - *now );
+    	if (p->expire <= *now) {
+			remove_peer( p );
+			return TRUE;
+    	}
+    	else {
+			return FALSE;
+    	}
+	}
+	else return FALSE;
 }
 
 void compare_token( gchar *ip, peer *p, struct mi_struct* fr){
@@ -83,9 +86,9 @@ void compare_token( gchar *ip, peer *p, struct mi_struct* fr){
 			fr->encontrado = TRUE;			
 			if (strcmp(fr->trama->parameters->items[0]->valor,"true") == 0){
 				g_message("peer autenticado, permitiendolo por todo el timeout...");
-				peer_deny ( nocat_conf, p );
+				//peer_deny (nocat_conf, p);
 				p->status = 0;
-				peer_permit ( nocat_conf, p,NULL,NULL );
+				peer_permit (nocat_conf, p,NULL);
 			}
 		}
 	}

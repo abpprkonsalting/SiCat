@@ -39,14 +39,14 @@ done
 
 # Initialize iptables completely
 
-iptables -t filter -F -v >/var/log/mifirewall.log 2>&1
-iptables -t filter -X -v >>/var/log/mifirewall.log 2>&1
+iptables -t filter -F
+iptables -t filter -X
 
-iptables -t nat -F -v >>/var/log/mifirewall.log 2>&1
-iptables -t nat -X -v >>/var/log/mifirewall.log 2>&1
+iptables -t nat -F
+iptables -t nat -X
 
-iptables -t mangle -F -v >>/var/log/mifirewall.log 2>&1
-iptables -t mangle -X -v >>/var/log/mifirewall.log 2>&1
+iptables -t mangle -F
+iptables -t mangle -X
 
 
 
@@ -121,7 +121,7 @@ for iface in $InternalDevice; do
 		for fwmark in $classes; do
 			# Only forward tagged traffic per class
 			$fwd -i $iface -s $net -m mark --mark $fwmark -j ACCEPT
-			#$fwd -o $iface -d $net -m mark --mark $fwmark -j ACCEPT
+			$fwd -o $iface -d $net -m mark --mark $fwmark -j ACCEPT
 
 			# Masquerade permitted connections.
 			$nat -o $ExternalDevice -s $net -m mark --mark $fwmark -j MASQUERADE
@@ -147,105 +147,11 @@ for iface in $InternalDevice; do
 		fi
 	done
 
-	#$nat      -s $net -d connect.facebook.net -j MASQUERADE
-	#$redirect -s $net -d connect.facebook.net -j RETURN
-	#$fwd -s $net -d connect.facebook.net -j ACCEPT
-	#$fwd -d $net -s connect.facebook.net -j ACCEPT
+	#$nat      -s $net -d 0.0.0.0 -p tcp --dport 443 -j MASQUERADE
+	#$redirect -s $net -d 0.0.0.0 -p tcp --dport 443 -j ACCEPT
+	#$fwd -s $net -d 0.0.0.0 -p tcp --dport 443 -j ACCEPT
+	#$fwd -d $net -s 0.0.0.0 -p tcp --sport 443 -j ACCEPT
 
-	#$nat      -s $net -d static.ak.facebook.com -j MASQUERADE
-	#$redirect -s $net -d static.ak.facebook.com -j RETURN
-	#$fwd -s $net -d static.ak.facebook.com -j ACCEPT
-	#$fwd -d $net -s static.ak.facebook.com -j ACCEPT
-
-	#$nat      -s $net -d facebook.com -j MASQUERADE
-	#$redirect -s $net -d facebook.com -j RETURN
-	#$fwd -s $net -d facebook.com -j ACCEPT
-	#$fwd -d $net -s facebook.com -j ACCEPT
-
-	#$nat      -s $net -d akamaitechnologies.com -j MASQUERADE
-	#$redirect -s $net -d akamaitechnologies.com -j RETURN
-	#$fwd -s $net -d akamaitechnologies.com -j ACCEPT
-	#$fwd -d $net -s akamaitechnologies.com -j ACCEPT
-
-	#$nat      -s $net -d xboxsoho.com -j MASQUERADE
-	#$redirect -s $net -d xboxsoho.com -j RETURN
-	#$fwd -s $net -d xboxsoho.com -j ACCEPT
-	#$fwd -d $net -s xboxsoho.com -j ACCEPT
-
-	#$nat      -s $net -j MASQUERADE -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-################################################################################################
-
-	#$nat      -s $net -d 23.198.0.0/16 -j MASQUERADE  -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 23.198.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 23.198.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 23.198.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 23.194.0.0/16 -j MASQUERADE  -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 23.194.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 23.194.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 23.194.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 23.61.0.0/16 -j MASQUERADE  -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 23.61.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 23.61.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 23.61.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 96.16.0.0/16 -j MASQUERADE  -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 96.16.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 96.16.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 96.16.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 173.252.0.0/16 -j MASQUERADE  -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 173.252.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 173.252.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 173.252.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 65.52.128.33 -j MASQUERADE  -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 65.52.128.33 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 65.52.128.33 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 65.52.128.33 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 74.125.0.0/16 -j MASQUERADE -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 74.125.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 74.125.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 74.125.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 205.234.0.0/16 -j MASQUERADE -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 205.234.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 205.234.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 205.234.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 23.219.0.0/16 -j MASQUERADE -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 23.219.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 23.219.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 23.219.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 23.0.0.0/8 -j MASQUERADE -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 23.0.0.0/8 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 23.0.0.0/8 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 23.0.0.0/8 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 69.192.0.0/16 -j MASQUERADE -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 69.192.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 69.192.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 69.192.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 69.171.0.0/16 -j MASQUERADE -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 69.171.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 69.171.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 69.171.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-	#$nat      -s $net -d 172.232.0.0/16 -j MASQUERADE -v >>/var/log/mifirewall.log 2>&1
-	#$redirect -s $net -d 172.232.0.0/16 -j RETURN -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -s $net -d 172.232.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-	#$fwd -d $net -s 172.232.0.0/16 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-
-
-################################################################################################
 
     # Set packets from internal devices to fw mark 4, or 'denied', by default.
     $mangle -i $iface -j MARK --set-mark 4
@@ -261,7 +167,7 @@ if [ "$MembersOnly" ]; then
 else
     nonauth="4"
 fi
-for port in 80 443; do
+for port in 80; do
     for mark in $nonauth; do
 #	$redirect -m mark --mark $mark -d windowsupdate.microsoft.com -j DROP
 	$redirect -m mark --mark $mark -p tcp --dport $port  -j REDIRECT \

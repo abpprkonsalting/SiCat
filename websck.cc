@@ -234,6 +234,9 @@ gboolean call_libwebsocket_service(void* dummy){
 				// Aquí debo avisar a la administración del sistema de que ha habido un probrema en el
 				// establecimiento del wsk.
 				
+				//g_message("websocket initialization error, retrying...");
+				lwsl_warn("websocket initialization error, retrying...");
+				
 				return TRUE;
 			}
 			else wsk_comm_interface->clear_init(); 
@@ -1047,7 +1050,7 @@ unsigned short int send_messages_queu::get_count(){
 // constructor
 comm_interface::comm_interface(){
 
-	lws_set_log_level(CONFd("wsk_log_level"), lwsl_emit_syslog);
+	//lws_set_log_level(CONFd("wsk_log_level"), lwsl_emit_syslog);
 	
 	context = NULL;
 	wsk_time_out = CONFd("wsk_time_out");

@@ -39,10 +39,10 @@ else
 fi
 
 # Mark inbound traffic in this node.
-iptables -t mangle $cmd NoCat -m mac --mac-source $mac -s $ip -j MARK --set-mark $mark  -v >>/var/log/access_fw_client_$mac.log 2>&1
+iptables -t mangle $cmd NoCat -m mac --mac-source $mac -s $ip -j MARK --set-mark $mark
 
 # Mark outbound traffic from this node.
-iptables -t filter $cmd NoCat_Inbound -d $ip -j ACCEPT -v >>/var/log/access_fw_client_$mac.log 2>&1
+iptables -t filter $cmd NoCat_Inbound -d $ip -j ACCEPT
 
 #
 # Ende

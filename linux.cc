@@ -9,6 +9,7 @@
 # include <sys/socket.h>
 # include <net/if.h>
 # include <netinet/in.h>
+# include <libwebsockets.h>
 
 # include "linux.h"
 
@@ -67,14 +68,16 @@ gchar* get_mac_address (const gchar *dev) {
 
     s = socket( PF_INET, SOCK_DGRAM, 0 );
     if (s == -1) {
-		g_warning("get_mac_address socket: %m");
+		//g_warning("get_mac_address socket: %m");
+		lwsl_warn("get_mac_address socket: %m");
 		g_free(dest);
 		return NULL;
     }
 
     r = ioctl( s, SIOCGIFHWADDR, &ifr );
     if (r == -1) {
-		g_warning("SIOCGIFHWADDR: %m");
+		//g_warning("SIOCGIFHWADDR: %m");
+		lwsl_warn("SIOCGIFHWADDR: %m");
 		g_free(dest);
 		close(s);
 	return NULL;

@@ -1,6 +1,7 @@
 # include <glib.h>
 # include <ctype.h>
 # include <time.h>
+# include <libwebsockets.h>
 # include "conf.h"
 # include "util.h"
 # include "defaults.h"
@@ -66,38 +67,46 @@ void set_network_defaults( GHashTable *conf ) {
     if (extdev == NULL) {
 	extdev = detect_network_device(NULL); 
 	if (extdev) {
-	    g_message( "Autodetected ExternalDevice %s", extdev );
+	    //g_message( "Autodetected ExternalDevice %s", extdev );
+	    lwsl_info("Autodetected ExternalDevice %s", extdev);
 	    g_hash_table_insert( conf, (gpointer)"ExternalDevice", (gpointer)extdev );
 	} else
-	    g_error( "No ExternalDevice detected!" );
+	    //g_error( "No ExternalDevice detected!" );
+	    lwsl_err("No ExternalDevice detected!");
     }
     
     intdev = (gchar*)g_hash_table_lookup(conf, "InternalDevice");
     if (intdev == NULL) {
 	intdev = detect_network_device(extdev); 
 	if (intdev) {
-	    g_message( "Autodetected InternalDevice %s", intdev );
+	    //g_message( "Autodetected InternalDevice %s", intdev );
+	    lwsl_info("Autodetected InternalDevice %s", intdev);
 	    g_hash_table_insert( conf, (gpointer)"InternalDevice", (gpointer)intdev );
 	} else
-	    g_error( "No InternalDevice detected!" );
+	    //g_error( "No InternalDevice detected!" );
+	    lwsl_err("No ExternalDevice detected!");
     }
     
     if (g_hash_table_lookup(conf, "LocalNetwork") == NULL) {
 	localnet = get_network_address(intdev);
 	if (localnet) {
-	    g_message( "Autodetected LocalNetwork %s", localnet );
+	    //g_message( "Autodetected LocalNetwork %s", localnet );
+	    lwsl_info("Autodetected LocalNetwork %s", localnet);
 	    g_hash_table_insert( conf, (gpointer)"LocalNetwork", (gpointer)localnet );
 	} else
-	    g_error( "No LocalNetwork detected!" );
+	    //g_error( "No LocalNetwork detected!" );
+	    lwsl_err("No LocalNetwork detected!");
     }
     
     if (g_hash_table_lookup(conf, "NodeID") == NULL) {
 	mac = get_mac_address(intdev);
 	if (mac) {
 	    g_hash_table_insert(conf, (gpointer)"NodeID", (gpointer)mac);
-	    g_message( "My node ID is %s (%s)", mac, intdev);
+	    //g_message( "My node ID is %s (%s)", mac, intdev);
+	    lwsl_info("My node ID is %s (%s)", mac, intdev);
 	} else
-	    g_warning( "No NodeID discernable from MAC address!" );
+	    //g_warning( "No NodeID discernable from MAC address!" );
+	    lwsl_warn("No NodeID discernable from MAC address!");
     }
 }
 

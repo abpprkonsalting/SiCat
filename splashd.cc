@@ -47,55 +47,37 @@ gboolean check_peers( void *dummy ) {
 
 /************* Connection handlers ************/
 
-/************* HangUp Connection handle *******
-gboolean handle_broken (GIOChannel *sock,gint priority ,GIOCondition cond, http_request *h){
-
-	g_message( "entering handle_broken with h = %d",h);
-	//GIOChannelError* Cerror = g_new0(GIOChannelError, 1);	
-	//g_io_channel_shutdown(h->sock,FALSE,Cerror);
-	//g_free(Cerror);
-	g_io_channel_close( h->sock );
-	g_io_channel_unref( h->sock );	
-	http_request_free(h);
-	h = NULL;
-	g_message( "leaving handle_broken with h = %d",h);
-	return TRUE;
-
-}*/
-
 /************* Read Input Data Connection handle *******/
 gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 
-	//peer* p; 
+	//peer* p;
+	int r;
 	
-	if (!(h->is_used)){
+	//if (!(h->is_used)){
 		
 		//show_socket_pairs((char*)"entering http_request_read with", h);
     	
-			if (http_request_read(h) != 0){
+		if (http_request_read(h) != 0){
 
-				if (!http_request_ok(h)) {
+			if (!http_request_ok(h)){
 					
-					//g_message("shutdown fd = %d",g_io_channel_unix_get_fd (h->sock));
-					g_io_channel_set_close_on_unref(h->sock,TRUE);
-					g_io_channel_shutdown(h->sock,FALSE,NULL);
-					g_io_channel_unref( h->sock );
-					requests->remove(h);
-					return FALSE;
-				}
-				else {
-					h->is_used = TRUE;
-					handle_request(h);
-					return FALSE;
-				}
+				return TRUE;
 			}
+			else {
+				
+				h->is_used = TRUE;
+				if (handle_request(h) == 0) return FALSE;
+				
+			}
+			
+		}
 		
 		//g_message("shutdown fd = %d",g_io_channel_unix_get_fd (h->sock));
-		g_io_channel_set_close_on_unref(h->sock,TRUE);
+
 		g_io_channel_shutdown(h->sock,FALSE,NULL);
 		g_io_channel_unref( h->sock );
 		requests->remove(h);
-	}
+	/*}*/
 
 	return FALSE;
 }
@@ -131,7 +113,6 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
     
     mypid = getpid();
     r = fcntl( fd, F_SETOWN, mypid);
-
 	
 	conn = g_io_channel_unix_new( fd );
 	
@@ -277,12 +258,12 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
     int priority;
 
     switch (log_level & G_LOG_LEVEL_MASK) {
-	case G_LOG_LEVEL_ERROR:	    priority = LOG_ERR;	    break;
-	case G_LOG_LEVEL_CRITICAL:  priority = LOG_CRIT;    break;
-	case G_LOG_LEVEL_WARNING:   priority = LOG_WARNING; break;
-	case G_LOG_LEVEL_MESSAGE:   priority = LOG_NOTICE;  break;
-	case G_LOG_LEVEL_INFO:	    priority = LOG_INFO;    break;
-	case G_LOG_LEVEL_DEBUG:	    
+		case G_LOG_LEVEL_ERROR:	    priority = LOG_ERR;	    break;
+		case G_LOG_LEVEL_CRITICAL:  priority = LOG_CRIT;    break;
+		case G_LOG_LEVEL_WARNING:   priority = LOG_WARNING; break;
+		case G_LOG_LEVEL_MESSAGE:   priority = LOG_NOTICE;  break;
+		case G_LOG_LEVEL_INFO:	    priority = LOG_INFO;    break;
+		case G_LOG_LEVEL_DEBUG:	    
 	default:		    priority = LOG_DEBUG;   break;
 				
     }
@@ -319,6 +300,8 @@ int main(int argc, char** argv)
 	/* initalize the log */
 
 	initialize_log();
+	
+	lws_set_log_level(CONFd("wsk_log_level"), lwsl_emit_syslog);
 	
 	/* set network parameters */
 	set_network_defaults( nocat_conf );
@@ -363,13 +346,14 @@ int main(int argc, char** argv)
 	
 	return 0;*/
 	
-	macAddressFrom = get_mac_address (CONF("ExternalDevice"));
+	macAddressFrom = get_mac_address(CONF("ExternalDevice"));
 	
 	wsk_comm_interface = NULL;
 	wsk_comm_interface = new class comm_interface();
 	if (wsk_comm_interface == NULL){
 		
-		g_message("websocket initialization error, aborting program...");
+		//g_message("websocket initialization error, aborting program...");
+		lwsl_err("websocket initialization error, aborting program...");
 		return -1;
 	}
 	
@@ -384,9 +368,11 @@ int main(int argc, char** argv)
 	g_timeout_add( 1000, (GSourceFunc) check_exit_signal, loop );
     
 	/* Go! */
-	g_message("starting main loop");
+	//g_message("starting main loop");
+	lwsl_notice("starting main loop");
 	g_main_run( loop );
-	g_message("exiting main loop");
+	//g_message("exiting main loop");
+	lwsl_notice("exiting main loop");
 	
 	return 0;
 }

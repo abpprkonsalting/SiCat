@@ -10,6 +10,7 @@
 # include <stdarg.h>
 # include <stdlib.h>
 # include <ctype.h>
+# include <libwebsockets.h>
 # include "util.h"
 //# include "splashd.h"
 # include "http.h"
@@ -33,19 +34,34 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     addr.sin_family = AF_INET;
     addr.sin_port   = htons(port);
     r = inet_aton( ip, &addr.sin_addr );
-    if (r == 0){ g_error("inet_aton failed on %s: %m", ip);	}
+    if (r == 0){
+    	//g_error("inet_aton failed on %s: %m", ip);
+    	lwsl_err("inet_aton failed on %s: %m", ip);
+    }
 
     fd = socket( PF_INET, SOCK_STREAM, 0 );
-    if (r == -1) {g_error("socket failed: %m"); }
+    if (r == -1) {
+    	//g_error("socket failed: %m");
+    	lwsl_err("socket failed: %m");
+    }
     
     r = bind( fd, (struct sockaddr *)&addr, sizeof(addr) );
-    if (r == -1) { g_error("bind failed on %s: %m", ip);	}
+    if (r == -1) {
+    	//g_error("bind failed on %s: %m", ip);
+    	lwsl_err("bind failed on %s: %m", ip);
+    }
 
     r = setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n) );
-    if (r == -1) { g_error("setsockopt failed on %s: %m", ip); }
+    if (r == -1) {
+    	//g_error("setsockopt failed on %s: %m", ip);
+    	lwsl_err("setsockopt failed on %s: %m", ip);
+    }
 
     n = fcntl( fd, F_GETFL, 0 );
-    if (n == -1) {g_error("fcntl F_GETFL on %s: %m", ip ); }
+    if (n == -1) {
+    	//g_error("fcntl F_GETFL on %s: %m", ip );
+    	lwsl_err("fcntl F_GETFL on %s: %m", ip );
+    }
 
     //r = fcntl( fd, F_SETFL, n | O_NDELAY );
     
@@ -54,7 +70,10 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
 	/* abp: aparently there is an error here, we should check r, not n
     if (n == -1)*/
 
-	if (r == -1) { g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip ); }
+	if (r == -1) {
+		//g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
+		lwsl_err("fcntl F_SETFL O_NDELAY on %s: %m", ip );
+	}
 
     /* 
      * n = fcntl( fd, F_GETFL, 0 );
@@ -62,7 +81,10 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
      */
 
     r = listen( fd, queue );
-    if (r == -1){ g_error("listen failed on %s: %m", ip); }
+    if (r == -1){
+    	//g_error("listen failed on %s: %m", ip);
+    	lwsl_err("listen failed on %s: %m", ip);
+    }
 
     return g_io_channel_unix_new( fd );
 }
@@ -95,6 +117,7 @@ http_request* http_request_new ( GIOChannel* sock ) {
     
     h->remote_port = addr.sin_port;
     h->is_used = FALSE;
+    h->perm = FALSE;
 
     g_io_channel_ref( sock );
     return h;
@@ -148,9 +171,10 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
     GHashTable* head = g_hash_new();
     gchar** lines,** items,* key,* val,* p;
     guint i;
+    char* referer = NULL;
 
     lines = g_strsplit( req, "\r\n", 0 );
-    items = g_strsplit( lines[0], " ", 3 );
+    items = g_strsplit( lines[0]," ", 3 );
 
     h->method = g_strdup( items[0] );
     h->uri    = g_strdup( items[1] );
@@ -174,6 +198,17 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 			g_strchomp( val += 2 ); // ": "
 			
 			g_debug("Header in: %s=%s", key, val );
+			
+			referer = strstr(val, (const char *)"http://www.datalnet.com");
+			
+			if (referer != NULL) {
+				
+				//g_message("encontrado el referer");
+				h->perm = TRUE;
+				referer = FALSE;
+			}
+			//else g_message("no referer");
+			
 			g_hash_set( head, key, val );
 		}
     }
@@ -271,10 +306,11 @@ void http_printf_header ( http_request *h, gchar *key, gchar *fmt, ... ) {
 }
 
 static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
-    g_string_sprintfa( buf, "%s: %s\r\n", key, val );
+    //g_string_sprintfa( buf, "%s: %s\r\n", key, val );
+    g_string_append_printf(buf, "%s: %s\r\n", key, val);
 }
 
-GIOError http_send_header ( http_request *h, int status, const gchar *msg ) {
+GIOError http_send_header ( http_request *h, int status, const gchar *msg, peer *p ) {
 	
     GString *hdr = g_string_new("");
     GIOError r;
@@ -282,28 +318,32 @@ GIOError http_send_header ( http_request *h, int status, const gchar *msg ) {
 
     g_string_sprintfa( hdr, "HTTP/1.1 %d %s\r\n", status, msg );
     g_hash_table_foreach( h->response, (GHFunc) http_compose_header, hdr );
+    
+    g_string_append( hdr, "Cache-Control: max-age=0\r\n");
+    
     g_string_append( hdr, "\r\n" );
     //g_debug("Header out: %s", hdr->str);
     
     //requests->get_ride_of_sombies();
     
+    if (p != NULL) g_string_assign(p->first_redirect,hdr->str);
+    
     r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
     g_message("sent header: %s",hdr->str);
     g_string_free( hdr, 1 );
     
-    g_io_channel_shutdown(h->sock,FALSE,NULL);
-	g_io_channel_unref( h->sock );
-	//http_request_free( h );
-	requests->remove(h);
-    
     return r;
 }
 
-void http_send_redirect( http_request *h, gchar *dest ) {
+void http_send_redirect( http_request *h, gchar *dest, peer *p ) {
 	
     http_add_header ( h, "Location", dest );
-    http_send_header( h, 302, "Moved" );
-    g_message("voy a retornar");
+    http_send_header( h, 303, "See Other", p );
+    //g_message("voy a retornar");
+    
+    g_io_channel_shutdown(h->sock,FALSE,NULL);
+	g_io_channel_unref( h->sock );
+	requests->remove(h);
 }
 
 gchar *http_fix_path (const gchar *uri, const gchar *docroot) {
@@ -370,7 +410,7 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     fd   = http_open_file( path, &status );
 
     http_add_header(  h, "Content-Type", http_mime_type( path ) );
-    http_send_header( h, status, fd == -1 ? "Not OK" : "OK" );
+    http_send_header( h, status, fd == -1 ? "Not OK" : "OK", NULL );
 
     if ( fd != -1 )
 	http_sendfile( h, fd );
@@ -388,7 +428,7 @@ int http_serve_template ( http_request *h, gchar *file, GHashTable *data ) {
     n = strlen(form);
 
     http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
-    http_send_header( h, 200, "OK" );
+    http_send_header( h, 200, "OK", NULL );
 
     r = g_io_channel_write( h->sock, form, n, &n );
 
@@ -418,21 +458,23 @@ guint http_request_read (http_request *h) {
 
 	//g_message("entering http_request_read");
 	
-
-	for (t = 0, n = BUFSIZ; h->buffer->len < MAX_REQUEST_SIZE &&
-		(hdr_end = strstr(h->buffer->str, "\r\n\r\n")) == NULL; t += n ) {
-		//g_message("entering read loop");
-
-		//flags = g_io_channel_get_flags(h->sock);
-		//g_message("%d",(h->sock.channel_flags | G_IO_FLAG_IS_READABLE));
-
-		//r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
+	cond = g_io_channel_get_buffer_condition(h->sock);
+	if ((cond == 0) || (cond == 2)){
 		
-		cond = g_io_channel_get_buffer_condition(h->sock);
-		if ((cond == 0) || (cond == 2)){
+		for (t = 0, n = BUFSIZ; h->buffer->len < MAX_REQUEST_SIZE &&
+			(hdr_end = strstr(h->buffer->str, "\r\n\r\n")) == NULL; t += n ) {
+				
+			//g_message("entering read loop");
+
+			//flags = g_io_channel_get_flags(h->sock);
+			//g_message("%d",(h->sock.channel_flags | G_IO_FLAG_IS_READABLE));
+
+			//r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
+		
 			r = g_io_channel_read_chars(h->sock, buf, BUFSIZ, &n,&gerror);
 			
 			if (gerror != NULL) {
+				
 				//g_message("g_io_channel_read_chars return error: %s",gerror->message);
 				g_free(buf);
 				return 0;
@@ -444,7 +486,7 @@ guint http_request_read (http_request *h) {
 				
 				//g_message("g_io_channel_read_chars() returned with GIOStatus = %d",r);
 				//g_message("buff antes del append: %s", buf);
-				
+			
 				/*if ((r == G_IO_STATUS_ERROR) || (r == G_IO_STATUS_AGAIN)){*/
 				
 					//g_message( "read_http_request failure" );
@@ -454,6 +496,7 @@ guint http_request_read (http_request *h) {
 				
 			}
 			else {
+				
 				//g_message("buff antes del append: %s", buf);
 				buf[n] = '\0';
 				//g_message("contenido de h->buffer antes del append: %s",h->buffer->str);
@@ -465,47 +508,47 @@ guint http_request_read (http_request *h) {
 					g_message( "read_http_request failure, bateo");
 					return 0;
 				}
+			}*/	
+		}
+	
+		//g_message("buf dentro del string: %s",h->buffer->str);	
+
+		http_parse_header( h, h->buffer->str );
+
+		c_len_hdr = HEADER("Content-length");
+		if (c_len_hdr == NULL) {
+			c_len = 0;
+		} else {
+			c_len = atoi( c_len_hdr );
+		}
+
+		/*The following block of code requires revision */
+
+		tot_req_size = hdr_end - h->buffer->str + 4 + c_len;
+		for (; t < tot_req_size; t += n ) {
+			//g_message("entering read loop again");
+			//r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
+			r = g_io_channel_read_chars(h->sock, buf, BUFSIZ, &n,&gerror);
+			//g_message("read loop again: read %d bytes of %d (%d)", n, BUFSIZ, r);
+			//if (gerror != NULL) g_message(gerror->message);
+			/*if (r != G_IO_ERROR_NONE) {
+			//g_warning( "read_http_request failure: %m" );
+			g_message( "read_http_request failure11");
+			g_free(buf);
+			return 0;
 			}*/
-			
+			buf[n] = '\0';
+			g_string_append(h->buffer, buf);
+			//g_message(buf);
 		}
-		else {
-			g_message("cond = %d",cond); 
-			break;
-		}
-	}
-	//g_message("buf dentro del string: %s",h->buffer->str);	
-
-	http_parse_header( h, h->buffer->str );
-
-	c_len_hdr = HEADER("Content-length");
-	if (c_len_hdr == NULL) {
-		c_len = 0;
-	} else {
-		c_len = atoi( c_len_hdr );
-	}
-
-/*The following block of code requires revision */
-
-	tot_req_size = hdr_end - h->buffer->str + 4 + c_len;
-	for (; t < tot_req_size; t += n ) {
-		//g_message("entering read loop again");
-		//r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
-		r = g_io_channel_read_chars(h->sock, buf, BUFSIZ, &n,&gerror);
-		//g_message("read loop again: read %d bytes of %d (%d)", n, BUFSIZ, r);
-		//if (gerror != NULL) g_message(gerror->message);
-		/*if (r != G_IO_ERROR_NONE) {
-		//g_warning( "read_http_request failure: %m" );
-		g_message( "read_http_request failure11");
 		g_free(buf);
-		return 0;
-		}*/
-		buf[n] = '\0';
-		g_string_append(h->buffer, buf);
-		//g_message(buf);
+		//g_message("leaving http_request_read with return = %d ", t);
+		return 1;
 	}
-	g_free(buf);
-	//g_message("leaving http_request_read with return = %d ", t);
-	return t;
+	else {
+		
+		return 0;
+	}
 }
 
 
@@ -540,6 +583,7 @@ http_request* h_requests::add(GIOChannel *sock){
 	
 	items[cantidad-1] = http_request_new ( sock );
 	
+	g_io_channel_set_close_on_unref(items[cantidad-1]->sock,TRUE);
 	return items[cantidad-1];
 	
 }

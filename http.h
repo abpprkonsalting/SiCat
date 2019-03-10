@@ -17,7 +17,27 @@ typedef struct {
     unsigned short int remote_port;
     gchar sock_ip[16];				// Inicializado en http_request_new()
     gboolean is_used;
+    gboolean perm;
 } http_request;
+
+typedef struct peer_st {
+    char ip[16]; /* 111.222.333.444   */
+    char hw[18]; /* 11:22:33:44:55:66 */
+    char token[35];
+    char *request;
+    time_t connected;
+    time_t expire;
+    
+    //enum { PEER_ACCEPT, PEER_DENY } status;	//Esto tuve que cambiarlo para la linea 
+    											//de abajo pues no me compilaba bien firewall.cc
+    											//PEER_ACCEPT = 0
+    											//PEER_DENY = 1
+    											//PEER_ACEPT_TEMP = 2
+    unsigned char status;
+    
+    GString * first_redirect;
+    
+} peer;
 
 class h_requests {
 
@@ -49,8 +69,8 @@ guint http_request_read (http_request *h);
 gboolean http_request_ok (http_request *h);
 void http_add_header ( http_request *h, const gchar *key, gchar *val );
 void http_printf_header ( http_request *h, gchar *key, gchar *fmt, ... );
-GIOError http_send_header ( http_request *h, int status, const gchar *msg );
-void http_send_redirect( http_request *h, gchar *dest );
+GIOError http_send_header ( http_request *h, int status, const gchar *msg, peer *p );
+void http_send_redirect( http_request *h, gchar *dest, peer *p );
 
 gchar *http_fix_path (const gchar *uri, const gchar *docroot);
 gchar *http_mime_type (const gchar *path);

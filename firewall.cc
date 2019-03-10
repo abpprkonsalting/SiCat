@@ -7,6 +7,7 @@
 # include <string.h>
 # include <errno.h>
 # include <time.h>
+# include <libwebsockets.h>
 # include "firewall.h"
 
 extern class h_requests* requests;
@@ -19,10 +20,9 @@ typedef struct {
 } fw_action;
 
 typedef struct {
-	
-	http_request* h;
-	GString* dest;
-} redire;
+	http_request *h;
+	peer *p;
+} redi;
 
 static void fw_exec_add_env ( gchar *key, gchar *val, GPtrArray *env ) {
     gchar *p;
@@ -101,22 +101,47 @@ gboolean fw_cleanup( fw_action *act ) {
     return FALSE;
 }
 
-static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
+/*static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
     g_string_sprintfa( buf, "%s: %s\r\n", key, val );
-}
+}*/
 
-gboolean redirecciona_delayed ( redire* red ){
+gboolean redirecciona_delayed (redi* red){
 	
-	http_send_redirect(red->h, red->dest->str);
-	//g_message("regresé");
-	g_string_free( red->dest, 1 );
+	/*char *dest = (char*)calloc(1,42);
+	memcpy ((char*)dest, (const char *)"http://connect.facebook.net/en_US/sdk.js", 40);
+	http_send_redirect(red->h,dest,NULL);
+	free(dest);*/
+	
+	
+	GIOError r;
+    int n;
+	
+	r = g_io_channel_write( red->h->sock, red->p->first_redirect->str, red->p->first_redirect->len, (guint*)&n );
+    //g_message("sent header: %s",red->p->first_redirect->str);
+    lwsl_info("sent header: %s",red->p->first_redirect->str);
+
+	g_io_channel_shutdown(red->h->sock,FALSE,NULL);
+	g_io_channel_unref( red->h->sock );
+	requests->remove(red->h);
+	
+	/*char *dest = (char*)calloc(1,110);
+	GIOError r;
+    int n;
+	memcpy ((char*)dest, (const char *)"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://connect.facebook.net/en_US/sdk.js\r\n\r\n", 87);
+	r = g_io_channel_write( red->h->sock, dest, strlen(dest), (guint*)&n );
+    g_message("sent header: %s",dest);*/
+
+	//g_io_channel_shutdown(red->h->sock,FALSE,NULL);
+	//g_io_channel_unref( red->h->sock );
+	//requests->remove(red->h);
+	
 	return FALSE;
 }
 
-void redirecciona(GPid pid,gint status,redire* red){
+void redirecciona(GPid pid,gint status,redi* red){
 	
-	g_timeout_add( 2000, (GSourceFunc) redirecciona_delayed, red );
-	requests->get_ride_of_sombies();
+	g_timeout_add( 2000, (GSourceFunc) redirecciona_delayed, red);
+	//requests->get_ride_of_sombies();
 	
 
 	/*if ( red->h->response == NULL ) red->h->response = g_hash_new();
@@ -135,36 +160,39 @@ void redirecciona(GPid pid,gint status,redire* red){
     g_message("sent header: %s",hdr->str);
     g_string_free( hdr, 1 );*/
 
-	//return TRUE;
 }
 
-int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h,	GString* dest) {
+int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
 	
     fw_action* act = g_new( fw_action, 1 );
+    redi* red = g_new( redi,1);
     pid_t pid;
-    redire* red = g_new(redire,1);
 
     act->cmd = action;
-    act->p   = p;
+    act->p = p;
     
     if (h != NULL) red->h = h;
-    if (dest != NULL) red->dest = dest;
-	g_message("antes del fork..");
-    pid = fork();
-    if (pid == -1){	g_error( "Can't fork: %m" );}
+    if (p != NULL) red->p = p;
     
-    if (h != NULL) {
-    	 if (pid > 0) {
-    	 	//g_message("añadiendo el watch");
-    	 	g_child_watch_add (pid, (GChildWatchFunc)redirecciona,red);
-    	 	//g_message("añadido el watch");
-		}
+	//g_message("antes del fork..");
+    pid = fork();
+    if (pid == -1){	
+    	//g_message( "Can't fork: %m" );
+    	lwsl_info("Can't fork: %m");
+    }
+    
+    if ((h != NULL) && (pid > 0)) {
+    	 	
+    	 //g_message("añadiendo el watch");
+    	 g_child_watch_add (pid, (GChildWatchFunc)redirecciona,red);
+    	 //g_message("añadido el watch");
 	}
     
-    if (! pid) {
-    	sleep(1);
+    if (!pid) {
+    	
+    	//sleep(1);
     	g_message("ejecutando el fw_exec");
-    	fw_exec( act, conf );
+    	fw_exec(act, conf);
 	}
 
     act->pid  = pid;
@@ -173,7 +201,8 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h,	GString*
 }
 
 int fw_init ( GHashTable *conf ) {
-    return fw_perform( (gchar*)"ResetCmd", conf, NULL,NULL,NULL );
+	
+    return fw_perform( (gchar*)"ResetCmd", conf, NULL,NULL);
 }
 
 /******* peer.c routines **********/
@@ -185,8 +214,8 @@ void peer_extend_timeout( GHashTable *conf, peer *p, time_t ext ) {
 peer* peer_new ( GHashTable* conf, const gchar *ip ) {
 	
     peer* p = g_new0( peer, 1 );
-    g_assert( p != NULL );
-    g_assert( ip != NULL );
+    //g_assert( p != NULL );
+    //g_assert( ip != NULL );
     // Set IP address.
     strncpy( p->ip, ip, sizeof(p->ip) );
     // Set MAC address.
@@ -195,56 +224,56 @@ peer* peer_new ( GHashTable* conf, const gchar *ip ) {
     p->connected = time( NULL );
     p->token[0] = '\0';
     p->status = 1;
-    peer_extend_timeout(conf, p,conf_int( conf, "LoginTimeout" ));
+    peer_extend_timeout(conf, p,conf_int( conf, "LoginGrace" ));
+    
+    p->first_redirect = g_string_new("");
+    
     return p;
 }
 
 void peer_free ( peer *p ) {
     g_assert( p != NULL );
-    if (p->request != NULL)
-	g_free( p->request );
+    if (p->request != NULL) g_free( p->request );
+    g_string_free(p->first_redirect,TRUE);
     g_free(p);
 }
 
-int peer_permit ( GHashTable *conf, peer *p, http_request* h,	GString* dest ) {
-	
-    /*g_assert( p != NULL );
-    if (p->status != 0) {
-		if (fw_perform( (gchar*)"PermitCmd", conf, p ) == 0) {
-			p->status = 0;
-		} else {
-			return -1;
-		}
-    }
-    peer_extend_timeout(conf, p);
-    return 0;*/
+int peer_permit ( GHashTable *conf, peer *p, http_request* h) {
     
     time_t extension = 0;
     //g_message("peer status = %d",p->status);
-    if ((p->status == 0) || (p->status == 2)) {
+    if (p->status == 2) {
     	
-    	if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h,dest ) == 0)) return -1;
+    	if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h) == 0)) return -1;
     	
-    	if (p->status == 0) extension = conf_int( conf, "LoginTimeout" );
-    	else extension = 180;
+    	extension = conf_int( conf, "LoginGrace" );
 	}
+	else if (p->status == 0){
+		
+		if (!(fw_perform( (gchar*)"PermitCmd", conf, p,NULL) == 0)) return -1;
+		
+		extension = conf_int( conf, "LoginTimeout" );
+	}
+	
 	peer_extend_timeout(conf, p, extension);
     return 0;
 }
 
 int peer_deny ( GHashTable *conf, peer *p ) {
 	
-    g_assert( p != NULL );
-    g_message("peer status = %d",p->status);
+    //g_assert( p != NULL );
+    //g_message("peer status = %d",p->status);
     if (p->status != 1 ) {
     	
-		if (fw_perform( (gchar*)"DenyCmd", conf, p,NULL,NULL) == 0) {
+		if (fw_perform( (gchar*)"DenyCmd", conf, p,NULL) == 0) {
+			
+			peer_free(p);
 			p->status = 1;
 		} else {
 			return -1;
 		}
     }
-    g_message("peer status = %d",p->status);
+    //g_message("peer status = %d",p->status);
     return 0;
 }
 

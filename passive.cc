@@ -35,86 +35,89 @@ void capture_peer ( http_request *h, peer *p ) {
 	
     /* Esta función lo que hace es enviar al usuario que se está conectando un http redirect
      * para que vuelva a enviar la petición http pero esta vez dirigida al servidor auth */
-    
-    gchar* redir = target_redirect( h );
-    //gchar* gw_addr = local_host( h );
-    GHashTable* args = g_hash_new();
-    GString* dest;
-
-    g_hash_set( args, "redirect",	redir );
-    g_hash_set( args, "usertoken",	get_peer_token(p) );
-    g_hash_set( args, "userMac",    p->hw );
-    g_hash_set( args, "deviceMac",	macAddressFrom);
-    //g_hash_set( args, "timeout",	CONF("LoginTimeout") );
-    //g_hash_set( args, "gateway",	gw_addr );
-
-    dest = build_url( CONF("AuthServiceURL"), args );
-
-	// Antes de enviarle la redirección al cliente debo garantizar que el websocket está abierto 
-	// para recibir la respuesta. Esto se hace enviando un comando NULL a través de la interface
-	// del websocket. Si el websocket está activo esto no hace nada, si está cerrado lo abre y 
-	// envía un comando init.
 	
-	// Esto tengo que arreglarlo, pues llamar wsk_send_command no garantiza que el websocket se haya
-	// establecido correctamente. Además, en función de si el wsk se estableció o no debo enviarle
-	// al usuario el redirect o una página informándole del error de conexión con el servidor y 
-	// que contacte a la administración, etc..
-	
-	// Todos los comentarios anteriores no son válidos. Al cliente se le envía la redirección esté
-	// o no abierto el wsk. El proceso de autentificación en el servidor es quien se debe encargar
-	// de no decirle al usuario que ya tiene internet libre hasta que reciba confirmación desde el
-	// dispositivo de que esa acción se realizó. La línea de abajo solo tiene el objetivo de inicializar
-	// el websocket en caso de que esté inactivo, para tratar de garantizar que el servidor tenga
-	// como enviar la autorización del usuario. 
-	
-	wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
-	
-	/*char* file_name = (char*)calloc(1,100);
-	strcpy(file_name,(char*)"/var/log/access_fw_client_");
-	strcat(file_name,p->hw);
-	strcat(file_name,(char*)".log");
-	
-	int fd = open(file_name, O_RDONLY | O_CREAT);
-	
-	if (fd != -1) {
-		
-		clients_fw_files_array->add_file(fd);
-		
-		redire = g_new0(struct redirect,1);
-		redire->h = h;
-		redire->dest = dest; 
-		g_io_add_watch(clients_fw_files_array->get_item(fd), G_IO_IN, (GIOFunc) redirecciona,redire);
-	}*/
-	
-	if (p->status != 2) {
-		p->status = 2;
-		g_message("peer en proceso de autentificación, permitiendolo por 3 minutos...");
-		peer_permit ( nocat_conf, p,h,dest );
+	if (h->perm) {
+		if (p->status != 2) {
+			
+			p->status = 2;
+			h->perm = FALSE;
+			g_message("peer en proceso de autentificación, permitiendolo por el grace period...");
+			peer_permit (nocat_conf,p,h);
+			
+			/*char *dest = (char*)calloc(1,110);
+			GIOError r;
+    		int n;
+			memcpy ((char*)dest, (const char *)"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://connect.facebook.net/en_US/sdk.js\r\n\r\n", 100);
+			r = g_io_channel_write( h->sock, dest, strlen(dest), (guint*)&n );
+    		g_message("sent header: %s",dest);*/
+		}
 	}
+	else {
+		
+		gchar* redir = target_redirect( h );
+    	//gchar* gw_addr = local_host( h );
+    	GHashTable* args = g_hash_new();
+    	GString* dest;
 
-//***********************************************************************************************
-	/*Added lines by abp*/
+    	g_hash_set( args, "redirect",	redir );
+    	g_hash_set( args, "usertoken",	get_peer_token(p) );
+    	g_hash_set( args, "userMac",    p->hw );
+    	g_hash_set( args, "deviceMac",	macAddressFrom);
+    	//g_hash_set( args, "timeout",	CONF("LoginTimeout") );
+    	//g_hash_set( args, "gateway",	gw_addr );
 
-	gint fid = g_io_channel_unix_get_fd(h->sock);
-	struct sockaddr_in remote_socket;	
-	socklen_t n = sizeof(struct sockaddr_in);
+    	dest = build_url( CONF("AuthServiceURL"), args );
+    	
+    	// Antes de enviarle la redirección al cliente debo garantizar que el websocket está abierto 
+		// para recibir la respuesta. Esto se hace enviando un comando NULL a través de la interface
+		// del websocket. Si el websocket está activo esto no hace nada, si está cerrado lo abre y 
+		// envía un comando init.
+		
+		// Esto tengo que arreglarlo, pues llamar wsk_send_command no garantiza que el websocket se haya
+		// establecido correctamente. Además, en función de si el wsk se estableció o no debo enviarle
+		// al usuario el redirect o una página informándole del error de conexión con el servidor y 
+		// que contacte a la administración, etc..
+		
+		// Todos los comentarios anteriores no son válidos. Al cliente se le envía la redirección esté
+		// o no abierto el wsk. El proceso de autentificación en el servidor es quien se debe encargar
+		// de no decirle al usuario que ya tiene internet libre hasta que reciba confirmación desde el
+		// dispositivo de que esa acción se realizó. La línea de abajo solo tiene el objetivo de inicializar
+		// el websocket en caso de que esté inactivo, para tratar de garantizar que el servidor tenga
+		// como enviar la autorización del usuario. 
+	
+		wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
 
-	getpeername (fid, (struct sockaddr *)&remote_socket,  &n );
+		//***********************************************************************************************
+		/*Added lines by abp*/
 
-	g_message( "Captured peer %s:%d", h->peer_ip,remote_socket.sin_port );
+		gint fid = g_io_channel_unix_get_fd(h->sock);
+		struct sockaddr_in remote_socket;	
+		socklen_t n = sizeof(struct sockaddr_in);
 
-//***********************************************************************************************
-	//http_send_redirect(h, dest->str);
-    //g_string_free( dest, 1 );
-    //g_hash_free( args );
-    //g_free( gw_addr );
-    //g_free( redir );
+		getpeername (fid, (struct sockaddr *)&remote_socket,  &n );
+
+		g_message( "Captured peer %s:%d", h->peer_ip,remote_socket.sin_port );
+
+		//***********************************************************************************************
+		
+		//p->status = 2;
+		//peer_permit (nocat_conf,p,h);
+		
+		//sleep(5);
+		
+		http_send_redirect(h, dest->str,p);
+	
+		g_string_free( dest, 1 );
+		g_hash_free( args );
+		//g_free( gw_addr );
+		g_free( redir );
+	}
 }
 
 void logout_peer( http_request *h, peer *p ) {
 	
     remove_peer( p );
-    http_send_redirect( h, CONF("LogoutURL") );
+    http_send_redirect( h, CONF("LogoutURL"), NULL );
 }
 
 /*GHashTable* gpg_decrypt( char* ticket ) {
@@ -270,32 +273,30 @@ void logout_peer( http_request *h, peer *p ) {
     g_free(sockname);
 }*/
 
-void handle_request( http_request* h ) {
+int handle_request( http_request* h ) {
 	
     gchar* hostname = HEADER("Host");
     gchar* sockname = local_host(h);
+    int returno;
     
     gboolean is_new = FALSE;
     
-    peer* p = find_peer(h->peer_ip, &is_new );
+    if ((hostname == NULL) || (strcmp(hostname, sockname) != 0)) {
+    	
+    	peer* p = find_peer(h->peer_ip);
+    	capture_peer(h,p);
+    	returno = 0;
+	}
+	else returno = 1;
     
-    /*if ((hostname == NULL) || (strcmp( hostname, sockname ) != 0)
-    	 || is_new ) capture_peer(h,p);*/
-    if ((hostname == NULL) || (strcmp( hostname, sockname ) != 0)) capture_peer(h,p);
-        	 
-   	//if (is_new) capture_peer(h,p);
-    
-    else if (strcmp( h->uri, "/logout" ) == 0) {
+    //else if (strcmp( h->uri, "/logout" ) == 0) {
     	
 		// logout
-		logout_peer(h, p);
+	//	logout_peer(h, p);
 		// } else if (strcmp( h->uri, "/status" ) == 0) {
 		// status
 		// display_status(h, p);
-    }
+    //}
     g_free(sockname);
+    return returno;
 }
-
-/*void initialize_driver (void) {
-    return;
-}*/
