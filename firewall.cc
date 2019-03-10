@@ -165,15 +165,15 @@ void peer_extend_timeout( GHashTable *conf, peer *p, time_t ext ) {
 peer* peer_new ( GHashTable* conf, const gchar *ip ) {
 	
     peer* p = g_new0( peer, 1 );
-    p->ip = g_new0(char,50);
-    p->hw = g_new0(char,18);
-    p->token = g_new0(char,35);
+    //g_assert( p != NULL );
+    //g_assert( ip != NULL );
     // Set IP address.
     strncpy( p->ip, ip, sizeof(p->ip) );
     // Set MAC address.
     peer_arp( p );
     // Set connection time.
     p->connected = time( NULL );
+    p->token[0] = '\0';
     p->status = 1;
     peer_extend_timeout(conf, p,conf_int( conf, "LoginGrace" ));
     
@@ -181,10 +181,7 @@ peer* peer_new ( GHashTable* conf, const gchar *ip ) {
 }
 
 void peer_free ( peer *p ) {
-
-    g_free(p->ip);
-    g_free(p->hw);
-    g_free(p->token);
+    //g_assert( p != NULL );
     g_free(p);
 }
 

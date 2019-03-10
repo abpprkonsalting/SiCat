@@ -86,7 +86,7 @@ void splash_peer ( http_request *h ) {
 	
     GHashTable *data1;
     gchar *path = NULL, *file, *action1, *host;
-    GIOStatus r;
+    GIOError r;
    
     host = local_host( h );
     action1 = g_strdup_printf("http://%s/", host);

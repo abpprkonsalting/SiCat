@@ -57,7 +57,7 @@ struct conf_t default_conf[] = {
 	{ (gchar*)"wsk_keep_alive",	(gchar*)"3600"},
 	{ (gchar*)"wsk_log_level", (gchar*)"1"},
 	{ (gchar*)"usewsk", (gchar*)"1"},
-	
+
     // Trailing NULL
     { NULL, NULL }
 };

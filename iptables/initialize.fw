@@ -30,9 +30,11 @@ echo "1" > /proc/sys/net/ipv4/conf/all/rp_filter
 #
 rmmod ipchains > /dev/null 2>&1 # for RH 7.1 users.
 
-for module in ip_tables ipt_REDIRECT ipt_MASQUERADE ipt_MARK ipt_REJECT  \
-    ipt_TOS ipt_LOG iptable_mangle iptable_filter iptable_nat ip_nat_ftp \
-    ip_conntrack ipt_mac ipt_state ipt_mark; do
+#for module in ip_tables ipt_REDIRECT ipt_MASQUERADE ipt_MARK ipt_REJECT  \
+#    ipt_TOS ipt_LOG iptable_mangle iptable_filter iptable_nat ip_nat_ftp \
+#    ip_conntrack ipt_mac ipt_state ipt_mark; do
+
+for module in ip_tables ipt_MASQUERADE ipt_REJECT iptable_mangle iptable_filter iptable_nat ; do
 
     modprobe $module
 done
@@ -48,6 +50,25 @@ iptables -t nat -X
 iptables -t mangle -F
 iptables -t mangle -X
 
+# Allow traffic from the allowed interface
+
+if [ "$AllowedDevice" ]; then
+
+	# deny access from the allowed interface to the sicat interface and viceversa
+	
+	iptables -A INPUT -i $AllowedDevice -d $LocalNetwork -j DROP
+	iptables -A FORWARD -i $AllowedDevice -o $InternalDevice -j DROP
+	iptables -A FORWARD -i $InternalDevice -o $AllowedDevice -j DROP
+	
+	# Allow traffic from the allowed interface to the outside world
+	
+	iptables -A INPUT -i $AllowedDevice -s $AllowedNetwork -j ACCEPT
+	iptables -A OUTPUT -o $AllowedDevice -d $AllowedNetwork -j ACCEPT
+	iptables -A FORWARD -i $AllowedDevice -o $ExternalDevice -j ACCEPT
+	iptables -A FORWARD -i $ExternalDevice -o $AllowedDevice -m state --state ESTABLISHED -j ACCEPT
+	iptables -t nat -A POSTROUTING -s $AllowedNetwork -o $ExternalDevice -j MASQUERADE
+
+fi
 
 # Flush all user-defined chains
 #
@@ -83,8 +104,8 @@ iptables -t nat -D POSTROUTING -j NoCat_NAT
 
 iptables -t mangle -N NoCat
 iptables -t mangle -F NoCat
-iptables -t mangle -D PREROUTING -j NoCat
-iptables -t mangle -A PREROUTING -j NoCat
+iptables -t mangle -D PREROUTING -i $InternalDevice -j NoCat
+iptables -t mangle -A PREROUTING -i $InternalDevice -j NoCat
 
 fwd="iptables	    -t filter -A NoCat"
 ports="iptables	    -t filter -A NoCat_Ports"
@@ -120,7 +141,7 @@ for iface in $InternalDevice; do
 			# Only forward tagged traffic per class
 			$fwd -i $iface -s $net -m mark --mark $fwmark -j ACCEPT
 			$fwd -o $iface -d $net -m mark --mark $fwmark -j ACCEPT
-
+			
 			# Masquerade permitted connections.
 			$nat -o $ExternalDevice -s $net -m mark --mark $fwmark -j MASQUERADE
 		done

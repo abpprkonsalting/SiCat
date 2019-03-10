@@ -23,8 +23,6 @@ enum STATUSES {
 
 gboolean is_IP(gchar* name);
 
-//void c_ares_callback(void *arg, int status,int timeouts, struct hostent *hostee);
-
 void parse_status(int status, char* status_char);
 
 int callback_authentication(struct libwebsocket_context * thi, struct libwebsocket *wsi, enum libwebsocket_callback_reasons reason,
