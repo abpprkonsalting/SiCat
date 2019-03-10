@@ -25,7 +25,12 @@ gchar* target_redirect(http_request *h){
 
 gchar* local_host( http_request *h ) {
 	
-    return g_strdup_printf( "%s:%s", h->sock_ip, CONF("GatewayPort") );
+	gchar* ret = NULL;
+	
+	if (*(h->sock_ip) != 0) ret = g_strdup_printf( "%s:%s", h->sock_ip, CONF("GatewayPort") );
+	else ret = g_strdup_printf( "[%s]:%s", h->sock_ip6, CONF("GatewayPort") );
+	
+	return ret;
 }
 
 /************* Permit and deny peers *************/
@@ -47,8 +52,8 @@ void accept_peer ( http_request *h ) {
 	
     peer *p;
 	
-	gboolean no_importa;
-    p  = find_peer( h->peer_ip);
+	if (*(h->peer_ip) != 0) p  = find_peer( h->peer_ip);
+	else p  = find_peer( h->peer_ip6);
     g_message( "Accepting peer %s", p->ip );
 
     total_connections++;
@@ -85,10 +90,15 @@ void compare_token( gchar *ip, peer *p, struct mi_struct* fr){
 			
 			fr->encontrado = TRUE;			
 			if (strcmp(fr->trama->parameters->items[0]->valor,"true") == 0){
-				g_message("peer autenticado, permitiendolo por todo el timeout...");
+				//g_message("peer autenticado, permitiendolo por todo el timeout...");
 				//peer_deny (nocat_conf, p);
-				p->status = 0;
-				peer_permit (nocat_conf, p,NULL);
+				
+				if (p->status == 2) {
+					
+					p->status = 0;
+					peer_permit (nocat_conf, p,NULL);
+					
+				}
 			}
 		}
 	}

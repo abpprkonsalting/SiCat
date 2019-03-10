@@ -14,7 +14,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 		
 		case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 			
-			lwsl_err("LWS_CALLBACK_CLIENT_CONNECTION_ERROR");
+			g_error("LWS_CALLBACK_CLIENT_CONNECTION_ERROR");
 			
 			wsk_comm_interface->wsk_set_status(WSK_ERROR);
 			
@@ -22,12 +22,12 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 		case LWS_CALLBACK_CLIENT_FILTER_PRE_ESTABLISH:
 		
-			lwsl_notice("LWS_CALLBACK_CLIENT_FILTER_PRE_ESTABLISH");
+			lwsl_debug("LWS_CALLBACK_CLIENT_FILTER_PRE_ESTABLISH");
 			break;
 
 		case LWS_CALLBACK_CLIENT_ESTABLISHED:
 
-		 	lwsl_notice("LWS_CALLBACK_CLIENT_ESTABLISHED");
+		 	lwsl_debug("LWS_CALLBACK_CLIENT_ESTABLISHED");
 			
 			wsk_comm_interface->wsk_set_status(WSK_CLIENT_ESTABLISHED);
 		 	
@@ -35,7 +35,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 		case LWS_CALLBACK_CLOSED:
 			 
-			lwsl_notice("LWS_CALLBACK_CLOSED");
+			lwsl_debug("LWS_CALLBACK_CLOSED");
 						
 			wsk_comm_interface->wsk_set_status(WSK_CLOSED);
 			return -1;
@@ -44,16 +44,16 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 
 		case LWS_CALLBACK_CLIENT_RECEIVE:
 			
-			lwsl_notice("LWS_CLIENT_RECEIVE");
+			lwsl_debug("LWS_CLIENT_RECEIVE");
 			//lwsl_debug("recibidos %d  bytes",len);
-			lwsl_notice("recibidos %d  bytes",len);
-			lwsl_notice("recibido: %s",(char*)in);
+			//lwsl_notice("recibidos %d  bytes",len);
+			//lwsl_notice("recibido: %s",(char*)in);
 			
-			if (libwebsocket_is_final_fragment(wsi)) g_message("la trama llegó completa");
+			//if (libwebsocket_is_final_fragment(wsi)) g_message("la trama llegó completa");
 			
 			x = strlen((char*)in);
 			
-			lwsl_notice("contados: %d caracteres",x);
+			//lwsl_notice("contados: %d caracteres",x);
 			
 			wsk_comm_interface->reception_queu->receive_frame((char *)in,len);
 
@@ -61,7 +61,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 
 		case LWS_CALLBACK_CLIENT_RECEIVE_PONG:
 		
-			lwsl_notice("LWS_CALLBACK_CLIENT_RECEIVE_PONG");
+			lwsl_debug("LWS_CALLBACK_CLIENT_RECEIVE_PONG");
 					
 			break;
 			
@@ -73,7 +73,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 				 return -1;
 			}
 			
-			lwsl_notice("LWS_CLIENT_WRITEABLE");
+			lwsl_debug("LWS_CLIENT_WRITEABLE");
 			
 			wsk_comm_interface->sender_queu->run(wsi,wsk_comm_interface->get_status());
 			
@@ -98,19 +98,19 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 		
 		case LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS:
 		
-			lwsl_notice("LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS");
+			lwsl_debug("LWS_CALLBACK_OPENSSL_LOAD_EXTRA_CLIENT_VERIFY_CERTS");
 			break;
 			
 		case LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER:
 		
-			lwsl_notice("LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER");
+			lwsl_debug("LWS_CALLBACK_CLIENT_APPEND_HANDSHAKE_HEADER");
  			break;
  			
  		/* because we are protocols[0] ...  */
 
 		case LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED:
 		
-			lwsl_notice("LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED");
+			lwsl_debug("LWS_CALLBACK_CLIENT_CONFIRM_EXTENSION_SUPPORTED");
 			/*
 			if ((strcmp((char*)in, "deflate-stream") == 0) && deny_deflate) {
 				 g_message("denied deflate-stream extension\n"); 
@@ -130,38 +130,38 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			
 		case LWS_CALLBACK_PROTOCOL_INIT:
 		
-			lwsl_notice("LWS_CALLBACK_PROTOCOL_INIT");
+			lwsl_debug("LWS_CALLBACK_PROTOCOL_INIT");
  			break;
 
  		case LWS_CALLBACK_ADD_POLL_FD:
  		
- 			lwsl_notice("LWS_CALLBACK_ADD_POLL_FD");
+ 			lwsl_debug("LWS_CALLBACK_ADD_POLL_FD");
  			break;
  			
 		case LWS_CALLBACK_DEL_POLL_FD:
 		
- 			lwsl_notice("LWS_CALLBACK_DEL_POLL_FD");
+ 			lwsl_debug("LWS_CALLBACK_DEL_POLL_FD");
  			break;
  			
  		case LWS_CALLBACK_SET_MODE_POLL_FD:
  		
- 			lwsl_notice("LWS_CALLBACK_SET_MODE_POLL_FD");
+ 			lwsl_debug("LWS_CALLBACK_SET_MODE_POLL_FD");
  			break;
  			
 		case LWS_CALLBACK_CLEAR_MODE_POLL_FD:
 		
-			lwsl_notice("LWS_CALLBACK_CLEAR_MODE_POLL_FD");
+			lwsl_debug("LWS_CALLBACK_CLEAR_MODE_POLL_FD");
 			break;
 			
 		case LWS_CALLBACK_PROTOCOL_DESTROY:
 		
-			lwsl_notice("LWS_CALLBACK_PROTOCOL_DESTROY");
+			lwsl_debug("LWS_CALLBACK_PROTOCOL_DESTROY");
 			wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED);
 			break;
 				
 		default:
 		
-			lwsl_err("Libwebsocket callback function called with unnatended reason (%d)",(int)reason);
+			g_message("Libwebsocket callback function called with unnatended reason (%d)",(int)reason);
 
 			break; 
 	}
@@ -236,7 +236,7 @@ gboolean call_libwebsocket_service(void* dummy){
 				// establecimiento del wsk.
 				
 				//g_message("websocket initialization error, retrying...");
-				lwsl_warn("websocket initialization error, retrying...");
+				g_warning("websocket initialization error, retrying...");
 				
 				return TRUE;
 			}
@@ -739,16 +739,16 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 
 	if (!right){	// Si hubo algún problema en la creación de la clase m_frame eliminarla y retornar false.
 	
-		lwsl_notice("ups: trama incorrecta..");
+		lwsl_warn("ups: trama incorrecta..");
 		
 		char* tem = (char*)g_malloc0(message_size + 2);
 		memcpy(tem,message,message_size);
-		lwsl_err(tem);
+		g_debug(tem);
 		g_free(tem);
 		delete temp_frame;
 		return false;
 	}
-	else lwsl_notice("se recibió la trama correctamente..");
+	else g_debug("se recibió la trama correctamente..");
 	
 	// Aquí chequeo si es una trama ack, en caso de serlo por el momento solamente se descarta esta y ya.
 	// En un futuro se deberá chequear en la cola de salida la trama que está esperando por el ack, se elimina de la
@@ -771,7 +771,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 
 		if (ptr_frames[i]->get_index() == temp_frame->get_index()){
 
-			lwsl_notice("repeated frame arrived, descarted...");
+			lwsl_warn("repeated frame arrived, descarted...");
 			delete temp_frame;
 			return false;
 		}
@@ -788,7 +788,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 	ptr_frames = temp;
 	ptr_frames[count] = temp_frame;
 	//lwsl_debug("recibida la trama: %s",ptr_frames[count]->print());
-	lwsl_notice("recibida una trama");
+	lwsl_debug("recibida una trama");
 	count++;
 	wsk_comm_interface->set_last_access_time();
 	
@@ -1051,7 +1051,7 @@ unsigned short int send_messages_queu::get_count(){
 // constructor
 comm_interface::comm_interface(){
 
-	//lws_set_log_level(CONFd("wsk_log_level"), lwsl_emit_syslog);
+	lws_set_log_level(CONFd("wsk_log_level"), lwsl_emit_syslog);
 	
 	context = NULL;
 	wsk_time_out = CONFd("wsk_time_out");
@@ -1191,7 +1191,7 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 
 		if (context == NULL) {
 
-			lwsl_err("Could not create the websocket context, exiting..");
+			lwsl_warn("Could not create the websocket context, exiting..");
 			return -1;
 		}
 		
@@ -1199,7 +1199,7 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 
 		if (wsi == NULL) {
 
-			lwsl_err("libwebsocket client connect failed...");
+			g_error("libwebsocket client connect failed...");
 			return -1;
 		}
 		else {
@@ -1230,7 +1230,7 @@ void comm_interface::wsk_set_status(enum STATUSES status){
 	
 	parse_status(wsk_status, wsk_status_char);
 	
-	g_message("wsk change status from %s to %s", old_char, wsk_status_char);
+	//g_message("wsk change status from %s to %s", old_char, wsk_status_char);
 	
 	g_free(old_char);
 	g_free(wsk_status_char);

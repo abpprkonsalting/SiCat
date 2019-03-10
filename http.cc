@@ -11,6 +11,7 @@
 # include <stdlib.h>
 # include <ctype.h>
 # include <libwebsockets.h>
+# include <netinet/in.h>
 # include "util.h"
 //# include "splashd.h"
 # include "http.h"
@@ -35,32 +36,28 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     addr.sin_port   = htons(port);
     r = inet_aton( ip, &addr.sin_addr );
     if (r == 0){
-    	//g_error("inet_aton failed on %s: %m", ip);
-    	lwsl_err("inet_aton failed on %s: %m", ip);
+    	g_error("inet_aton failed on %s: %m", ip);
     }
 
     fd = socket( PF_INET, SOCK_STREAM, 0 );
-    if (r == -1) {
-    	//g_error("socket failed: %m");
-    	lwsl_err("socket failed: %m");
+    
+    if (fd == -1) {
+    	g_error("socket failed: %m");
     }
     
     r = bind( fd, (struct sockaddr *)&addr, sizeof(addr) );
     if (r == -1) {
-    	//g_error("bind failed on %s: %m", ip);
-    	lwsl_err("bind failed on %s: %m", ip);
+    	g_error("bind failed on %s: %m", ip);
     }
 
     r = setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n) );
     if (r == -1) {
-    	//g_error("setsockopt failed on %s: %m", ip);
-    	lwsl_err("setsockopt failed on %s: %m", ip);
+    	g_error("setsockopt failed on %s: %m", ip);
     }
 
     n = fcntl( fd, F_GETFL, 0 );
     if (n == -1) {
-    	//g_error("fcntl F_GETFL on %s: %m", ip );
-    	lwsl_err("fcntl F_GETFL on %s: %m", ip );
+		g_error("fcntl F_GETFL on %s: %m", ip );
     }
 
     //r = fcntl( fd, F_SETFL, n | O_NDELAY );
@@ -71,8 +68,7 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     if (n == -1)*/
 
 	if (r == -1) {
-		//g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
-		lwsl_err("fcntl F_SETFL O_NDELAY on %s: %m", ip );
+		g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
 	}
 
     /* 
@@ -82,8 +78,66 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
 
     r = listen( fd, queue );
     if (r == -1){
-    	//g_error("listen failed on %s: %m", ip);
-    	lwsl_err("listen failed on %s: %m", ip);
+    	g_error("listen failed on %s: %m", ip);
+    }
+
+    return g_io_channel_unix_new( fd );
+}
+
+GIOChannel *http_bind_socket6( const char *ip, int port, int queue ) {
+ 
+    struct sockaddr_in6 addr;
+    int fd, r, n = 1;
+
+    addr.sin6_family = AF_INET6;
+    addr.sin6_port   = htons(port);
+    
+    r = inet_pton (AF_INET6, ip,&addr.sin6_addr);
+    
+    if (r != 1){
+    	g_error("inet_aton failed on %s: %m", ip);
+    }
+
+    fd = socket( PF_INET6, SOCK_STREAM, 0 );
+    if (fd == -1) {
+    	
+    	g_error("socket failed: %m");
+    }
+    
+    r = bind( fd, (struct sockaddr *)&addr, sizeof(addr) );
+    if (r == -1) {
+    	g_error("bind failed on %s: %m", ip);
+    }
+
+    r = setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n) );
+    if (r == -1) {
+    	g_error("setsockopt failed on %s: %m", ip);
+    }
+
+    n = fcntl( fd, F_GETFL, 0 );
+    if (n == -1) {
+    	g_error("fcntl F_GETFL on %s: %m", ip );
+    }
+
+    //r = fcntl( fd, F_SETFL, n | O_NDELAY );
+    
+    r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
+
+	/* abp: aparently there is an error here, we should check r, not n
+    if (n == -1)*/
+
+	if (r == -1) {
+		g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
+	}
+
+    /* 
+     * n = fcntl( fd, F_GETFL, 0 );
+     * g_warning("fd %d has O_NDELAY %s", fd, (n | O_NDELAY ? "set" : "unset"));
+     */
+
+    r = listen( fd, queue );
+    if (r == -1){
+    	g_error("listen failed on %s: %m", ip);
     }
 
     return g_io_channel_unix_new( fd );
@@ -98,6 +152,44 @@ http_request* http_request_new ( GIOChannel* sock ) {
     int r;
     const gchar* r2;
 
+    //g_assert( sock != NULL );
+    //g_assert( h    != NULL );
+    //g_assert( fd   != -1 );
+
+    h->sock   = sock;
+    h->buffer = g_string_new("");
+
+    r = getsockname( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
+    if (r == -1) { 
+    	g_warning( "getsockname failed: %m" );
+    	http_request_free (h);
+    	return NULL;
+    }
+    r2 = inet_ntop( AF_INET, &addr.sin_addr, h->sock_ip, INET_ADDRSTRLEN );
+    //g_assert( r2 != NULL );
+
+    r = getpeername( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
+    if (r == -1){
+    	g_warning( "getpeername failed: %m" );
+    	http_request_free (h);
+    	return NULL;
+    }
+    r2 = inet_ntop( AF_INET, &addr.sin_addr, h->peer_ip, INET_ADDRSTRLEN );
+    //g_assert( r2 != NULL );
+
+    g_io_channel_ref( sock );
+    return h;
+}
+
+http_request* http_request_new6 ( GIOChannel* sock ) {
+
+    http_request* h = g_new0(http_request, 1);
+    int fd = g_io_channel_unix_get_fd( sock );
+    struct sockaddr_in6 addr;
+    int n = sizeof(struct sockaddr_in6);
+    int r;
+    const gchar* r2;
+
     g_assert( sock != NULL );
     g_assert( h    != NULL );
     g_assert( fd   != -1 );
@@ -106,24 +198,30 @@ http_request* http_request_new ( GIOChannel* sock ) {
     h->buffer = g_string_new("");
 
     r = getsockname( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
-    if (r == -1) { g_error( "getsockname failed: %m" );}
-    r2 = inet_ntop( AF_INET, &addr.sin_addr, h->sock_ip, INET_ADDRSTRLEN );
-    g_assert( r2 != NULL );
+    if (r == -1) { 
+    	g_warning( "getsockname failed: %m" );
+    	http_request_free (h);
+    	return NULL;
+    }
+    r2 = inet_ntop( AF_INET6, &addr.sin6_addr, h->sock_ip6, INET6_ADDRSTRLEN );
+    //g_assert( r2 != NULL );
 
     r = getpeername( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
-    if (r == -1){ g_error( "getpeername failed: %m" );}
-    r2 = inet_ntop( AF_INET, &addr.sin_addr, h->peer_ip, INET_ADDRSTRLEN );
-    g_assert( r2 != NULL );
+    if (r == -1){
+    	g_warning( "getpeername failed: %m" );
+    	http_request_free (h);
+    	return NULL;
+    }
+    r2 = inet_ntop( AF_INET, &addr.sin6_addr, h->peer_ip6, INET6_ADDRSTRLEN );
+    //g_assert( r2 != NULL );
     
-    h->remote_port = addr.sin_port;
-    h->is_used = FALSE;
-    h->perm = FALSE;
-
     g_io_channel_ref( sock );
     return h;
+
 }
 
 void http_request_free ( http_request *h ) {
+	
     g_free( h->uri );
     g_free( h->method );
     g_hash_free( h->header );
@@ -132,6 +230,7 @@ void http_request_free ( http_request *h ) {
     g_string_free( h->buffer, 1 );
     g_io_channel_unref( h->sock );
     g_free( h );
+    
 }
 
 GHashTable* parse_query_string( gchar *query ) {
@@ -171,15 +270,14 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
     GHashTable* head = g_hash_new();
     gchar** lines,** items,* key,* val,* p;
     guint i;
-    char* referer = NULL;
 
     lines = g_strsplit( req, "\r\n", 0 );
     items = g_strsplit( lines[0]," ", 3 );
 
     h->method = g_strdup( items[0] );
     h->uri    = g_strdup( items[1] );
-    g_message( "method: %s", h->method );
-    g_message( "uri: %s", h->uri );
+    //g_message( "method: %s", h->method );
+    //g_message( "uri: %s", h->uri );
     g_strfreev( items );
 
     for (i = 1; lines[i] != NULL && lines[i][0] != '\0'; i++ ) {
@@ -197,17 +295,7 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 			/* Strip ": " plus leading and trailing space from val */
 			g_strchomp( val += 2 ); // ": "
 			
-			g_debug("Header in: %s=%s", key, val );
-			
-			referer = strstr(val, (const char *)"http://192.168.1.1");
-			
-			if (referer != NULL) {
-				
-				g_message("encontrado el referer");
-				h->perm = TRUE;
-				referer = FALSE;
-			}
-			//else g_message("no referer");
+			//g_debug("Header in: %s=%s", key, val );
 			
 			g_hash_set( head, key, val );
 		}
@@ -270,7 +358,7 @@ gboolean http_request_ok (http_request *h) {
 			if (h->query) {
 				
 				z = g_hash_as_string( h->query );
-				g_debug( "Query: %s", z->str );
+				//g_debug( "Query: %s", z->str );
 				g_string_free(z, 1);
 			}
 			h->complete++;
@@ -329,7 +417,7 @@ GIOError http_send_header ( http_request *h, int status, const gchar *msg, peer 
     //if (p != NULL) g_string_assign(p->first_redirect,hdr->str);
     
     r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
-    g_message("sent header: %s",hdr->str);
+    //g_message("sent header: %s",hdr->str);
     g_string_free( hdr, 1 );
     
     return r;
@@ -434,7 +522,9 @@ GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 )
     g_free( form );
 
     if ( r != G_IO_ERROR_NONE ) {
-		g_warning( "Serving template to %s failed: %m", h->peer_ip );
+    	
+    	if (*(h->peer_ip) != 0)	g_warning( "Serving template to %s failed: %m", h->peer_ip );
+    	else g_warning( "Serving template to %s failed: %m", h->peer_ip6 );
     }
 
     return r;
@@ -548,119 +638,4 @@ guint http_request_read (http_request *h) {
 		return 0;
 	}
 }
-
-
-/***************************** class h_requests methods ***************************/
-h_requests::h_requests(){
-	
-	cantidad = 0;
-	items = NULL;
-	
-}
-
-h_requests::~h_requests(){
-	
-	
-	
-}
-
-http_request* h_requests::add(GIOChannel *sock){
-	
-	cantidad += 1;
-	if (cantidad > 1) {     
-		
-		//http_request** items_new = g_try_renew(http_request*, items, cantidad);
-		http_request** items_new = g_try_new0(http_request*, cantidad);
-		
-		memcpy (items_new, items, sizeof(http_request*)*(cantidad-1));
-		
-		g_free(items);
-		items = items_new;
-	}
-	else items = g_try_new0(http_request*,cantidad);
-	
-	items[cantidad-1] = http_request_new ( sock );
-	
-	g_io_channel_set_close_on_unref(items[cantidad-1]->sock,TRUE);
-	return items[cantidad-1];
-	
-}
-
-http_request* h_requests::get(unsigned int index){
-	
-	return items[index];
-}
-
- int h_requests::get_index(http_request* h){
-	
-	for (int i = 0;i<cantidad;i++){
-		
-		if (items[(unsigned int)i] == h) return i; 
-	}
-	return -1;
-}
-
-void h_requests::remove(http_request* h) {
-	
-	//g_message("entering remove with cantidad = %d",cantidad);
-	if (cantidad == 1) {
-		
-		http_request_free (items[0]);
-		cantidad = 0;
-		//g_free(items[0]);
-		g_free(items);
-		items = NULL;
-	}
-	else {
-		for (unsigned int i = 0; i<cantidad;i++) {
-			
-			//g_message("items[%d] = %d",i,items[i]);
-			if (h == items[i]) {
-				
-				//g_message("found h(%d) as items[%d]",h,items[i]);
-				http_request_free (items[i]);
-				
-				for (unsigned int a = i;a<cantidad - 1;a++){
-				
-					items[a] = items[a+1];
-				}
-				//g_message("inside items[%d] = %d",i,items[i]);
-				break;
-			}
-		}
-		cantidad = cantidad - 1;
-		//http_request** items_new = g_try_renew(http_request*, items, cantidad);
-		http_request** items_new = g_try_new0(http_request*, cantidad);
-		memcpy (items_new, items, sizeof(http_request*)*(cantidad));
-		
-		g_free(items);
-		items = items_new;
-	}
-	//g_message("leaving remove");
-}
-
-void h_requests::get_ride_of_sombies(){
-	
-	g_message("getting rid of sombies with cantidad = %d",cantidad);
-	
-	for (unsigned int i = 0; i<cantidad;i++){
-		
-		g_message("checking request %d",g_io_channel_unix_get_fd (items[i]->sock));
-		if (!(items[i]->is_used)) {
-			
-			g_message("getting rid of sombie %d",g_io_channel_unix_get_fd (items[i]->sock));
-			
-			g_io_channel_set_close_on_unref(items[i]->sock,TRUE);
-
-			//handle_read(items[i]->sock,G_IO_IN, items[i] );
-			
-			g_io_channel_shutdown(items[i]->sock,FALSE,NULL);
-			g_io_channel_unref( items[i]->sock );
-			remove(items[i]);
-			i = i -1;
-		}
-	}
-	g_message("salí de los sombies");
-}
-/***************************** end class h_requests methods ***********************/
 

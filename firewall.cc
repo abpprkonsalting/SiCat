@@ -43,7 +43,7 @@ static int fw_exec( fw_action *act, GHashTable *conf ) {
     GPtrArray *env;
     gchar *cmd, **arg, **n;
 
-	g_message("entré en fw_exec con action = %s",act->cmd);
+	//g_message("entré en fw_exec con action = %s",act->cmd);
     data2 = g_hash_dup(conf);
     
     //g_message("retorné de g_hash_dup");
@@ -61,7 +61,7 @@ static int fw_exec( fw_action *act, GHashTable *conf ) {
 
     cmd = conf_string( data2, act->cmd ); /*****************/
     cmd = parse_template( cmd, data2 );
-    g_message("Got command %s from action %s", cmd, act->cmd );
+    //g_message("Got command %s from action %s", cmd, act->cmd );
     arg = g_strsplit( cmd, " ", 0 );
 
     // prime the environment with our existing environment
@@ -129,7 +129,7 @@ gboolean redirecciona_delayed (redi* red){
 
 	dest = build_url( CONF("AuthServiceURL"), args );
 
-	wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
+	if (!CONFd("nowsk")) wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
 	
 	http_send_redirect(red->h, dest->str,red->p);
 
@@ -138,8 +138,9 @@ gboolean redirecciona_delayed (redi* red){
 	//g_free( redir );
 	
     g_io_channel_shutdown(red->h->sock,FALSE,NULL);
-	g_io_channel_unref(red->h->sock );
-	requests->remove(red->h);
+	//g_io_channel_unref(red->h->sock );
+	//requests->remove(red->h);
+	http_request_free (red->h);
 	
 	return FALSE;
 }
@@ -164,8 +165,7 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
 	//g_message("antes del fork..");
     pid = fork();
     if (pid == -1){	
-    	//g_message( "Can't fork: %m" );
-    	lwsl_info("Can't fork: %m");
+    	g_warning( "Can't fork: %m" );
     }
     
     if ((h != NULL) && (pid > 0)) {
@@ -189,7 +189,11 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
 
 int fw_init ( GHashTable *conf ) {
 	
-    return fw_perform( (gchar*)"ResetCmd", conf, NULL,NULL);
+    fw_perform( (gchar*)"ResetCmd", conf, NULL,NULL);
+    
+    if (CONFd("IPv6")) fw_perform( (gchar*)"ResetCmd6", conf, NULL,NULL);
+    
+    return 0;
 }
 
 /******* peer.c routines **********/
@@ -213,15 +217,12 @@ peer* peer_new ( GHashTable* conf, const gchar *ip ) {
     p->status = 1;
     peer_extend_timeout(conf, p,conf_int( conf, "LoginGrace" ));
     
-    p->first_redirect = g_string_new("");
-    
     return p;
 }
 
 void peer_free ( peer *p ) {
     g_assert( p != NULL );
     if (p->request != NULL) g_free( p->request );
-    g_string_free(p->first_redirect,TRUE);
     g_free(p);
 }
 
@@ -231,13 +232,22 @@ int peer_permit ( GHashTable *conf, peer *p, http_request* h) {
     //g_message("peer status = %d",p->status);
     if (p->status == 2) {
     	
-    	if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h) == 0)) return -1;
+    	if (*(h->peer_ip) != 0) {
+    	
+    		if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h) == 0)) return -1;
+    	
+		}
+		else {
+			
+			if (!(fw_perform( (gchar*)"PermitCmd6", conf, p,h) == 0)) return -1;
+			
+		}
     	
     	extension = conf_int( conf, "LoginGrace" );
 	}
 	else if (p->status == 0){
 		
-		if (!(fw_perform( (gchar*)"PermitCmd", conf, p,NULL) == 0)) return -1;
+		//if (!(fw_perform( (gchar*)"PermitCmd", conf, p,NULL) == 0)) return -1;
 		
 		extension = conf_int( conf, "LoginTimeout" );
 	}
@@ -253,11 +263,11 @@ int peer_deny ( GHashTable *conf, peer *p ) {
     if (p->status != 1 ) {
     	
 		if (fw_perform( (gchar*)"DenyCmd", conf, p,NULL) == 0) {
-			
-			peer_free(p);
-			p->status = 1;
+				
+				peer_free(p);
+				//p->status = 1;
 		} else {
-			return -1;
+				return -1;
 		}
     }
     //g_message("peer status = %d",p->status);

@@ -182,24 +182,24 @@ gchar *load_file( const char *path ) {
 
     fd = open( path, O_RDONLY );
     if ( fd == -1 ) {
-	g_error( "Can't open %s: %m", path );
-	return NULL;
+		g_warning( "Can't open %s: %m", path );
+		return NULL;
     }
 
     r = fstat( fd, &s );
-    g_assert( r == 0 );
+    //g_assert( r == 0 );
 
     data = mmap( NULL, s.st_size, PROT_READ, MAP_SHARED, fd, 0 );
-    g_assert( data != MAP_FAILED );
+    //g_assert( data != MAP_FAILED );
 
     file = g_strndup( (gchar*)data, s.st_size );
-    g_assert( file != NULL );
+    //g_assert( file != NULL );
 
     r = munmap( data, s.st_size );
-    g_assert( r == 0 );
+    //g_assert( r == 0 );
 
     r = close(fd);
-    g_assert( r == 0 );
+    //g_assert( r == 0 );
 
     return file;
 }
@@ -293,3 +293,52 @@ gchar *md5_crypt( const gchar *src, gchar *salt ) {
 }
 
 //# endif /* HAVE_LIBCRYPT */
+
+
+gboolean get_address_from_name(gchar* name){
+	
+	char *first, *second, *third, *temp;
+	gboolean is_IP = TRUE;
+	
+	//struct hostent * host_info;
+	
+	//Chequear que la variable no sea ya una ip
+	
+	first = strtok ((char *)name, (const char *)".");
+	
+	if (first != NULL){
+		
+		if (strcspn(first, (const char *)"0123456789") == 0 ){
+			
+			second = strtok (NULL, (const char *)".");
+			
+			if (second != NULL){
+				
+				if (strcspn(second, (const char *)"0123456789") == 0 ){
+					
+					third = strtok (NULL, (const char *)".");
+					
+					if (strcspn(third, (const char *)"0123456789") == 0 ){
+						
+						
+					}
+				}
+			}
+		}
+		else {
+			// Hay un caracter no numérico en el primer token, por lo tanto esto no es una dirección
+			// IP
+			
+			is_IP = FALSE;
+			
+		}		
+	}
+	else {
+		// This is the else of the search for the first token. As not finding a first dot means that
+		// there is not dots at all in the name passed as argument to the function this could not be
+		// an ip address so we try to solve the address.
+		
+		is_IP = FALSE;
+	}
+	
+}

@@ -51,7 +51,6 @@ gboolean check_peers( void *dummy ) {
 gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 
 	//peer* p;
-	int r;
 	
 	//if (!(h->is_used)){
 		
@@ -75,8 +74,9 @@ gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 		//g_message("shutdown fd = %d",g_io_channel_unix_get_fd (h->sock));
 
 		g_io_channel_shutdown(h->sock,FALSE,NULL);
-		g_io_channel_unref( h->sock );
-		requests->remove(h);
+		//g_io_channel_unref( h->sock );
+		//requests->remove(h);
+		http_request_free (h);
 	/*}*/
 
 	return FALSE;
@@ -84,6 +84,57 @@ gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 
 /************* Accept Connection handle *******/
 gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
+
+	GIOChannel* conn;
+	http_request* req; /* defined in http.h */
+	int fd,r,n;
+	pid_t mypid;
+	GError* gerror = NULL;
+
+	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
+
+	/* The line below need to be substituted by other error checking method that don't break daemon execution*/
+	//g_assert( fd != -1 );
+	
+	n = fcntl( fd, F_GETFL, 0 );
+    //if (n == -1) g_error("fcntl F_GETFL on %s: %m", ip );
+    //g_message("n = %d",n);
+    
+    //g_message("O_NONBLOCK modified = %d",n & O_NONBLOCK);
+    
+    r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
+
+	//if (r == -1) g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
+	
+	//n = fcntl( fd, F_GETFL, 0 );
+    //if (n == -1) g_error("fcntl F_GETFL on %s: %m", ip );
+    //g_message("n again = %d",n);
+    //g_message("O_NONBLOCK modified again = %d",n & O_NONBLOCK);
+    
+    mypid = getpid();
+    r = fcntl( fd, F_SETOWN, mypid);
+	
+	conn = g_io_channel_unix_new( fd );
+	
+	g_io_channel_set_encoding(conn,NULL,&gerror);
+	if (gerror != NULL) g_message(gerror->message);
+	
+	req  = http_request_new( conn );
+	//req = requests->add(conn);
+
+	//show_socket_pairs((char*)"handle_accept", req);	
+	
+	if (req != NULL) g_io_add_watch( conn, G_IO_IN, (GIOFunc) handle_read, req );
+	else {
+		
+		g_io_channel_shutdown(conn,FALSE,NULL);
+		g_io_channel_unref( conn );
+		
+	}
+	return TRUE;
+}
+
+gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 
 	GIOChannel* conn;
 	http_request* req; /* defined in http.h */
@@ -119,20 +170,21 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 	g_io_channel_set_encoding(conn,NULL,&gerror);
 	if (gerror != NULL) g_message(gerror->message);
 	
-	//req  = http_request_new( conn );
-	req = requests->add(conn);
+	req  = http_request_new6( conn );
+	//req = requests->add6(conn);
 
 	//show_socket_pairs((char*)"handle_accept", req);	
 	
-	g_io_add_watch( conn, G_IO_IN, (GIOFunc) handle_read, req );
-	
-	//g_message("added watch for request %d",requests->get_index(req));
-
-	//g_io_add_watch( conn, G_IO_HUP, (GIOFunc) handle_broken, req );
-	//g_io_add_watch_full(conn,G_PRIORITY_HIGH,G_IO_HUP,(GIOFunc) handle_broken,req,NULL);
-
+	if (req != NULL) g_io_add_watch( conn, G_IO_IN, (GIOFunc) handle_read, req );
+	else {
+		
+		g_io_channel_shutdown(conn,FALSE,NULL);
+		g_io_channel_unref( conn );
+		
+	}
 	return TRUE;
 }
+
 
 gboolean check_exit_signal ( GMainLoop *loop ) {
 	
@@ -270,8 +322,7 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
 
     syslog( priority | LOG_DAEMON, message );
 
-    if (log_level & G_LOG_FLAG_FATAL)
-	exit_signal = -1;
+    if (log_level & G_LOG_FLAG_FATAL) exit_signal = -1;
 }
 
 void initialize_log (void) 
@@ -279,8 +330,7 @@ void initialize_log (void)
 	if (strncmp( CONF("LogFacility"), "syslog", 6 ) == 0)
 	{
 		openlog(CONF("SyslogIdent"), LOG_CONS | LOG_PID, LOG_DAEMON );	
-		g_log_set_handler( 0,(GLogLevelFlags)(G_LOG_LEVEL_MASK | G_LOG_FLAG_RECURSION | G_LOG_FLAG_FATAL
-			| G_LOG_LEVEL_DEBUG | G_LOG_LEVEL_INFO),g_syslog,0);
+		g_log_set_handler( 0,(GLogLevelFlags)(G_LOG_LEVEL_MASK | G_LOG_FLAG_RECURSION | G_LOG_FLAG_FATAL),g_syslog,0);
 	}
 }
 
@@ -289,11 +339,17 @@ void initialize_log (void)
 int main(int argc, char** argv)
 {
 	GMainLoop  *loop;
-	GIOChannel *sock;
+	GIOChannel *sock, *sock6;
 
 	/* read sicat.conf */
 
 	nocat_conf = read_conf_file( NC_CONF_PATH "/sicat.conf" );
+	
+	if (nocat_conf == NULL) {
+		
+		g_error("could not read the config file, aborting program...");
+		return -1;
+	}
 	
 	if (argc < 2 || strncmp(argv[1], "-D", 2) != 0) daemonize();
 
@@ -301,13 +357,26 @@ int main(int argc, char** argv)
 
 	initialize_log();
 	
-	lws_set_log_level(CONFd("wsk_log_level"), lwsl_emit_syslog);
-	
 	/* set network parameters */
-	set_network_defaults( nocat_conf );
+	set_network_defaults(nocat_conf);
 
-	/* initialize the gateway type driver
-	initialize_driver();*/
+	/*if (!(solve_dns(nocat_conf,(gchar *)"AuthServiceAddr")){
+		
+		g_message("Unable to get IP address of authentication server, aborting program...");
+		return -1;
+	}
+	
+	if (!(solve_dns(nocat_conf,(gchar *)"AllowedWebHosts")){
+		
+		g_message("Unable to get IP address of AllowedWebHosts, aborting program...");
+		return -1;
+	}*/
+	
+	/*if (!(solve_dns(nocat_conf,(gchar *)"wsk_server_address")){
+		
+		g_message("Unable to get IP address of websocket server, aborting program...");
+		return -1;
+	}*/
 
 	/* initialize the firewall */
 	fw_init(nocat_conf);
@@ -316,63 +385,40 @@ int main(int argc, char** argv)
 	peer_tab = g_hash_new();
 
 	/* initialize the listen socket */
-	sock = http_bind_socket( CONF("GatewayAddr"), CONFd("GatewayPort"), CONFd("ListenQueue") );
+	sock = http_bind_socket( CONF("GatewayAddr"), CONFd("GatewayPort"), CONFd("ListenQueue"));
+	
+	if (CONFd("IPv6")) sock6 = http_bind_socket6( "in6addr_any", CONFd("GatewayPort"), CONFd("ListenQueue"));
 
 	/* create and initialize the websocket comunication interface */
-	
-	/*bool otra;
-	char men[1024];
-	
-	strcpy(men,"<Protocol Version=\"3\">\
-	<Frame Type=\"1\" Command=\"6\" FrameCount=\"1\" AckCount=\"0\" BodyFrameSize=\"0\" FromDeviceId=\"\" ToDeviceId=\"621d40c9-3731-4d4e-8751-690e3e4167e6\">\
-		<Parameters Count=\"2\">\
-			<Parameter Name=\"IsAuthenticated\" Value=\"true\" />\
-			<Parameter Name=\"UserToken\" Value=\"48e3f2d3-f805-4ea7-afda-d0fe2344b0b3\" />\
-		</Parameters>\
-	</Frame>\
-</Protocol>");
-	
-	class m_frame* mi_trama = new class m_frame(men,0,&otra);
-	
-	g_message("Version: %d",mi_trama->Version);
-	g_message("Type: %d",mi_trama->Type);
-	g_message("Command: %d",mi_trama->Command);
-	g_message("FrameCount: %d",mi_trama->FrameCount);
-	g_message("AckCount: %d",mi_trama->AckCount);
-	g_message("BodyFrameSize: %d",mi_trama->BodyFrameSize);
-	
-	g_message("Parametro 1 -- Nombre: %s , Valor: %s ",mi_trama->parameters->items[0]->nombre,mi_trama->parameters->items[0]->valor);
-	g_message("Parametro 2 -- Nombre: %s , Valor: %s ",mi_trama->parameters->items[1]->nombre,mi_trama->parameters->items[1]->valor);
-	
-	return 0;*/
 	
 	macAddressFrom = get_mac_address(CONF("ExternalDevice"));
 	
 	wsk_comm_interface = NULL;
-	wsk_comm_interface = new class comm_interface();
-	if (wsk_comm_interface == NULL){
+	
+	if (!CONFd("nowsk")){
+		wsk_comm_interface = new class comm_interface();
+		if (wsk_comm_interface == NULL){
 		
-		//g_message("websocket initialization error, aborting program...");
-		lwsl_err("websocket initialization error, aborting program...");
-		return -1;
+			g_error("websocket initialization error, aborting program...");
+			return -1;
+		}
 	}
 	
-	requests = g_new0(h_requests,1);
+	//requests = g_new0(h_requests,1);
 
 	/* initialize the main loop and handlers */
 	loop = g_main_loop_new(NULL,FALSE);//
 
 	//g_io_add_watch( sock, G_IO_IN, (GIOFunc) handle_accept, &requests_count );
 	g_io_add_watch( sock, G_IO_IN, (GIOFunc) handle_accept,NULL);
+	if (CONFd("IPv6")) g_io_add_watch( sock6, G_IO_IN, (GIOFunc) handle_accept6,NULL);
 	g_timeout_add( 30000, (GSourceFunc) check_peers, NULL );
 	g_timeout_add( 1000, (GSourceFunc) check_exit_signal, loop );
     
 	/* Go! */
-	//g_message("starting main loop");
-	lwsl_notice("starting main loop");
+	g_message("starting main loop");
 	g_main_run( loop );
-	//g_message("exiting main loop");
-	lwsl_notice("exiting main loop");
+	g_message("exiting main loop");
 	
 	return 0;
 }

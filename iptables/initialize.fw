@@ -103,29 +103,16 @@ fi
 #
 for iface in $InternalDevice; do
 	for net in $LocalNetwork; do
-
-		# Allow web traffic to the specified hosts, and don't capture
-		# connections intended for them.
-		#
-		#if [ "$AuthServiceAddr" -o "$AllowedWebHosts" ]; then 
-		#	for host in $AuthServiceAddr $AllowedWebHosts; do
-		#		for port in 80 443; do
-		#			$nat      -s $net -d $host -p tcp --dport $port -j MASQUERADE
-		#			$redirect -s $net -d $host -p tcp --dport $port -j ACCEPT
-		#			$fwd -s $net -d $host -p tcp --dport $port -j ACCEPT
-		#			$fwd -d $net -s $host -p tcp --sport $port -j ACCEPT
-		#		done
-		#	done
-		#fi
 		
 		## Allow access in the local network to the LuCi configuration
 		# 	page
 		#
-		if ["$AllowedWebHosts" ]; then 
+		if [ "$AllowedWebHosts" ]; then
 			for host in $AllowedWebHosts; do
-				for port in 80 443; do
-					iptables -t filter -A INPUT -i $InternalDevice -s $net -d $host -p tcp --dport $port -j ACCEPT
-					iptables -t filter -A OUTPUT -o $InternalDevice -d $net -s $host -p tcp --sport $port -j ACCEPT
+				for port in 80; do
+					$redirect -i $iface -s $net -d $host -p tcp --dport $port -j ACCEPT
+					$fwd -i $iface -s $net -d $host -p tcp --dport $port -j ACCEPT
+					$fwd -o $iface -d $net -s $host -p tcp --sport $port -j ACCEPT
 				done
 			done
 		fi
@@ -158,12 +145,6 @@ for iface in $InternalDevice; do
 	    	done
 		fi
 	done
-
-	#$nat      -s $net -d 0.0.0.0 -p tcp --dport 443 -j MASQUERADE
-	#$redirect -s $net -d 0.0.0.0 -p tcp --dport 443 -j ACCEPT
-	#$fwd -s $net -d 0.0.0.0 -p tcp --dport 443 -j ACCEPT
-	#$fwd -d $net -s 0.0.0.0 -p tcp --sport 443 -j ACCEPT
-
 
     # Set packets from internal devices to fw mark 4, or 'denied', by default.
     $mangle -i $iface -j MARK --set-mark 4
@@ -237,11 +218,9 @@ elif [ "$ExcludePorts" ]; then
 fi
   
 #
-# Disable access on the external to GatewayPort from anything but the AuthServiceAddr
+# Disable access on the external to GatewayPort
 #
-if [ "$AuthServiceAddr" ]; then
-    $fwd -i $ExternalDevice -s ! $AuthServiceAddr -p tcp --dport $GatewayPort -j DROP
-fi
+$fwd -i $ExternalDevice -p tcp --dport $GatewayPort -j DROP
 
 # Filter policy.
 $fwd -j DROP

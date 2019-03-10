@@ -48,3 +48,6 @@ gchar *base64_encode( const gchar *s, const int length );
 gchar *get_mac_address( const gchar *dev );
 gchar *get_network_address( const gchar *dev );
 gchar *detect_network_device( const gchar *exclude );
+
+
+gboolean get_address_from_name(gchar* name);

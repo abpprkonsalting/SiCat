@@ -1,0 +1,87 @@
+#!/bin/sh
+##
+#
+# initialize.fw: setup the default firewall rules
+#
+
+# The current service classes by fwmark are:
+#
+#  1: Owner
+#  2: Co-op
+#  3: Public
+#  4: Free
+
+# Note: your PATH is inherited from the gateway process
+#
+
+## ip6tables rules
+#
+
+ip6tables -t filter -F
+ip6tables -t filter -X
+
+ip6tables -t mangle -F
+ip6tables -t mangle -X
+
+ip6tables -t filter -N NoCat 2>/dev/null
+ip6tables -t filter -F NoCat
+ip6tables -t filter -D FORWARD -j NoCat 2>/dev/null
+ip6tables -t filter -A FORWARD -j NoCat
+
+ip6tables -t filter -N NoCat_Inbound 2>/dev/null
+ip6tables -t filter -F NoCat_Inbound
+ip6tables -t filter -D NoCat -j NoCat_Inbound 2>/dev/null
+ip6tables -t filter -A NoCat -j NoCat_Inbound
+
+ip6tables -t mangle -N NoCat 2>/dev/null
+ip6tables -t mangle -F NoCat
+ip6tables -t mangle -D PREROUTING -j NoCat 2>/dev/null
+ip6tables -t mangle -A PREROUTING -j NoCat
+
+
+fwd="ip6tables -t filter -A NoCat"
+mangle="ip6tables -t mangle -A NoCat"
+
+if [ "$MembersOnly" ]; then
+  classes="1 2"
+else
+  classes="1 2 3"
+fi
+
+for iface in $InternalDevice; do
+		
+	for fwmark in $classes; do
+		# Only forward tagged traffic per class
+		$fwd -i $iface -m mark --mark $fwmark -j ACCEPT
+		$fwd -o $iface -m mark --mark $fwmark -j ACCEPT
+
+	done
+
+    # Set packets from internal devices to fw mark 4, or 'denied', by default.
+    # 
+    $mangle -i $iface -j MARK --set-mark 4
+done
+
+# Redirect outbound non-auth web traffic to the local gateway process
+#
+# If MembersOnly is active, then redirect public class as well
+#
+if [ "$MembersOnly" ]; then
+    nonauth="3 4"
+else
+    nonauth="4"
+fi
+for port in 80; do
+    for mark in $nonauth; do
+    
+		$mangle -i $iface -p tcp --dport $port  -j TPROXY --on-port $GatewayPort
+		
+    done
+done
+
+# Filter policy.
+$fwd -j DROP
+
+#
+# Ende
+#

@@ -38,13 +38,13 @@ ssize_t http_sendfile ( http_request *h, int in_fd ) {
 }
 
 gchar* peer_arp( peer *p ) {
-    gchar ip[16], hw[18];
+    gchar ip[50], hw[18];
     FILE *arp;
 
     g_assert( p != NULL );
 
     arp = fopen( "/proc/net/arp", "r" );
-    if ( arp == NULL ){	g_error( "Can't open /proc/net/arp: %m" );}
+    if ( arp == NULL ){	g_warning( "Can't open /proc/net/arp: %m" );}
    
     fscanf(arp, "%*s %*s %*s %*s %*s %*s %*s %*s %*s"); // Skip first line 
     while (fscanf( arp, "%15s %*s %*s %17s %*s %*s\n", ip, hw ) != EOF)  {
@@ -68,19 +68,17 @@ gchar* get_mac_address (const gchar *dev) {
 
     s = socket( PF_INET, SOCK_DGRAM, 0 );
     if (s == -1) {
-		//g_warning("get_mac_address socket: %m");
-		lwsl_warn("get_mac_address socket: %m");
+		g_warning("get_mac_address socket: %m");
 		g_free(dest);
 		return NULL;
     }
 
     r = ioctl( s, SIOCGIFHWADDR, &ifr );
     if (r == -1) {
-		//g_warning("SIOCGIFHWADDR: %m");
-		lwsl_warn("SIOCGIFHWADDR: %m");
+		g_warning("SIOCGIFHWADDR: %m");
 		g_free(dest);
 		close(s);
-	return NULL;
+		return NULL;
     }
 
     hwaddr = ifr.ifr_hwaddr.sa_data;
@@ -97,6 +95,7 @@ gchar* get_mac_address (const gchar *dev) {
 }
 
 gchar* get_network_address (const gchar *dev) {
+	
     int r, s;
     struct ifreq ifaddr, ifnetmask;
     gchar *dest = g_new0( gchar, 33 );
@@ -104,27 +103,27 @@ gchar* get_network_address (const gchar *dev) {
 
     s = socket( PF_INET, SOCK_DGRAM, 0 );
     if (s == -1) {
-	g_warning("get_network_address socket: %m");
-	g_free(dest);
-	return NULL;
+		g_warning("get_network_address socket: %m");
+		g_free(dest);
+		return NULL;
     }
 
     strncpy( ifaddr.ifr_name, dev, IFNAMSIZ );
     r = ioctl( s, SIOCGIFADDR, &ifaddr );
     if (r == -1) {
-	g_warning("SIOCGIFADDR: %m");
-	g_free(dest);
-	close(s);
-	return NULL;
+		g_warning("SIOCGIFADDR: %m");
+		g_free(dest);
+		close(s);
+		return NULL;
     }
 
     strncpy( ifnetmask.ifr_name, dev, IFNAMSIZ );
     r = ioctl( s, SIOCGIFNETMASK, &ifnetmask );
     if (r == -1) {
-	g_warning("SIOCGIFNETMASK: %m");
-	g_free(dest);
-	close(s);
-	return NULL;
+		g_warning("SIOCGIFNETMASK: %m");
+		g_free(dest);
+		close(s);
+		return NULL;
     }
   
     addr = (char *) &(((struct sockaddr_in *)&ifaddr.ifr_addr)->sin_addr);

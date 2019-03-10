@@ -17,9 +17,12 @@ struct conf_t default_conf[] = {
 
     { (gchar*)"FirewallPath",	(gchar*)NC_FIREWALL_PATH },
     { (gchar*)"ResetCmd",	(gchar*)"$FirewallPath/initialize.fw" },
+    { (gchar*)"ResetCmd6",	(gchar*)"$FirewallPath/initialize6.fw" },
     { (gchar*)"PermitCmd",	(gchar*)"$FirewallPath/access.fw permit $MAC $IP $Class" },
     { (gchar*)"DenyCmd",	(gchar*)"$FirewallPath/access.fw deny $MAC $IP $Class" },
     { (gchar*)"InitCmd",	(gchar*)"$FirewallPath/reset.fw" },
+    { (gchar*)"PermitCmd6",	(gchar*)"$FirewallPath/access6.fw permit $MAC $IP $Class" },
+    { (gchar*)"DenyCmd6",	(gchar*)"$FirewallPath/access6.fw deny $MAC $IP $Class" },
 
     { (gchar*)"AuthServiceAddr", (gchar*)"www.datalnet.com" },
     { (gchar*)"AuthServiceURL", (gchar*)"http://www.datalnet.com/SocialNetwork" },
@@ -31,7 +34,8 @@ struct conf_t default_conf[] = {
 
     //  Where to look for form templates?
     { (gchar*)"DocumentRoot",	 (gchar*)NC_DOCUMENT_ROOT },
-    { "SplashForm",	"splash.html" },
+    { (gchar*)"SplashForm",	(gchar*)"splash.html" },
+    { (gchar*)"IPv6",	(gchar*)"0" },
 
     //  Default log level.
     { (gchar*)"Verbosity",	(gchar*)"5" },
@@ -51,7 +55,7 @@ struct conf_t default_conf[] = {
 	{ (gchar*)"wsk_time_out",	(gchar*)"600"},
 	{ (gchar*)"wsk_keep_alive",	(gchar*)"3600"},
 	{ (gchar*)"wsk_log_level", (gchar*)"1"},
-	
+	{ (gchar*)"nowsk", (gchar*)"0"},
 
     // Trailing NULL
     { NULL, NULL }
