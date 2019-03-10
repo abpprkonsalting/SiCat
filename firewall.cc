@@ -8,10 +8,14 @@
 # include <errno.h>
 # include <time.h>
 # include <libwebsockets.h>
-# include "firewall.h"
+//# include "firewall.h"
+# include "gateway.h"
+//# include "websck.h"
 
 extern class h_requests* requests;
 extern char **environ;
+extern gchar* macAddressFrom;
+extern class comm_interface* wsk_comm_interface;
 
 typedef struct {
     pid_t pid;
@@ -35,31 +39,37 @@ static void fw_exec_add_env ( gchar *key, gchar *val, GPtrArray *env ) {
 
 static int fw_exec( fw_action *act, GHashTable *conf ) {
 	
-    GHashTable *data;
+    GHashTable *data2;
     GPtrArray *env;
     gchar *cmd, **arg, **n;
 
-    data = g_hash_dup( conf );
+	g_message("entré en fw_exec con action = %s",act->cmd);
+    data2 = g_hash_dup(conf);
+    
+    //g_message("retorné de g_hash_dup");
     //
     // Than add specifics about this particular client, if any
     if (act->p != NULL) {
-	g_hash_set( data, "IP",    act->p->ip );
-	g_hash_set( data, "MAC",   act->p->hw );
-	g_hash_set( data, (gchar*)"Class", (gchar*)"Public" );
+		//g_message("act->p existe");
+		g_hash_set( data2, "IP",    act->p->ip );
+		g_hash_set( data2, "MAC",   act->p->hw );
+		g_hash_set( data2, (gchar*)"Class", (gchar*)"Public" );
     }
+    /*else {
+    	g_message("act->p no existe");
+	}*/
 
-    cmd = conf_string( conf, act->cmd );
-    cmd = parse_template( cmd, data );
-    // g_message("Got command %s from action %s", cmd, act->cmd );
+    cmd = conf_string( data2, act->cmd ); /*****************/
+    cmd = parse_template( cmd, data2 );
+    g_message("Got command %s from action %s", cmd, act->cmd );
     arg = g_strsplit( cmd, " ", 0 );
 
     // prime the environment with our existing environment
     env = g_ptr_array_new();
-    for ( n = environ; *n != NULL; n++ )
-	g_ptr_array_add( env, *n );
+    for ( n = environ; *n != NULL; n++ )	g_ptr_array_add( env, *n );
 
     // Then add everything from the conf file
-    g_hash_table_foreach( data, (GHFunc) fw_exec_add_env, env );
+    g_hash_table_foreach( data2, (GHFunc) fw_exec_add_env, env );
 
     // Add a closing NULL so execve knows where to lay off.
     g_ptr_array_add( env, NULL );
@@ -67,11 +77,12 @@ static int fw_exec( fw_action *act, GHashTable *conf ) {
     /* We're not cleaning up memory references because 
      * hopefully the exec won't fail... */
     execve( *arg, arg, (char **)env->pdata );
-    g_error( "execve %s failed: %m", cmd ); // Shouldn't happen.
+    g_message( "execve %s failed: %m", cmd ); // Shouldn't happen.
     return -1;
 }
 
 gboolean fw_cleanup( fw_action *act ) {
+	
     guint status = 0, retval = 0;
     pid_t r = 0;
 
@@ -107,33 +118,28 @@ gboolean fw_cleanup( fw_action *act ) {
 
 gboolean redirecciona_delayed (redi* red){
 	
-	/*char *dest = (char*)calloc(1,42);
-	memcpy ((char*)dest, (const char *)"http://connect.facebook.net/en_US/sdk.js", 40);
-	http_send_redirect(red->h,dest,NULL);
-	free(dest);*/
-	
-	
-	GIOError r;
-    int n;
-	
-	r = g_io_channel_write( red->h->sock, red->p->first_redirect->str, red->p->first_redirect->len, (guint*)&n );
-    //g_message("sent header: %s",red->p->first_redirect->str);
-    lwsl_info("sent header: %s",red->p->first_redirect->str);
+	gchar* redir = (gchar*)g_hash_table_lookup(red->h->query,"redirect");
+	GHashTable* args = g_hash_new();
+	GString* dest;
 
-	g_io_channel_shutdown(red->h->sock,FALSE,NULL);
-	g_io_channel_unref( red->h->sock );
+	g_hash_set( args, "redirect",	redir );
+	g_hash_set( args, "usertoken",	get_peer_token(red->p) );
+	g_hash_set( args, "userMac",    red->p->hw );
+	g_hash_set( args, "deviceMac",	macAddressFrom);
+
+	dest = build_url( CONF("AuthServiceURL"), args );
+
+	wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
+	
+	http_send_redirect(red->h, dest->str,red->p);
+
+	g_string_free( dest, 1 );
+	g_hash_free( args );
+	//g_free( redir );
+	
+    g_io_channel_shutdown(red->h->sock,FALSE,NULL);
+	g_io_channel_unref(red->h->sock );
 	requests->remove(red->h);
-	
-	/*char *dest = (char*)calloc(1,110);
-	GIOError r;
-    int n;
-	memcpy ((char*)dest, (const char *)"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://connect.facebook.net/en_US/sdk.js\r\n\r\n", 87);
-	r = g_io_channel_write( red->h->sock, dest, strlen(dest), (guint*)&n );
-    g_message("sent header: %s",dest);*/
-
-	//g_io_channel_shutdown(red->h->sock,FALSE,NULL);
-	//g_io_channel_unref( red->h->sock );
-	//requests->remove(red->h);
 	
 	return FALSE;
 }
@@ -141,25 +147,6 @@ gboolean redirecciona_delayed (redi* red){
 void redirecciona(GPid pid,gint status,redi* red){
 	
 	g_timeout_add( 2000, (GSourceFunc) redirecciona_delayed, red);
-	//requests->get_ride_of_sombies();
-	
-
-	/*if ( red->h->response == NULL ) red->h->response = g_hash_new();
-    g_hash_set( red->h->response, "Location", red->dest->str );
-    
-    GString *hdr = g_string_new("");
-    GIOError r;
-    int n;
-
-    g_string_sprintfa( hdr, "HTTP/1.1 %d %s\r\n", 302, "Moved" );
-    g_hash_table_foreach( red->h->response, (GHFunc) http_compose_header, hdr );
-    g_string_append( hdr, "\r\n" );
-    g_debug("Header out: %s", hdr->str);
-    r = g_io_channel_write( red->h->sock, hdr->str, hdr->len, (guint*)&n );
-    g_io_channel_flush(red->h->sock,NULL);
-    g_message("sent header: %s",hdr->str);
-    g_string_free( hdr, 1 );*/
-
 }
 
 int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
@@ -191,11 +178,11 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
     if (!pid) {
     	
     	//sleep(1);
-    	g_message("ejecutando el fw_exec");
+    	//g_message("ejecutando el fw_exec");
     	fw_exec(act, conf);
 	}
 
-    act->pid  = pid;
+    //act->pid  = pid;
     //g_idle_add( (GSourceFunc) fw_cleanup, act );
     return 0;
 }

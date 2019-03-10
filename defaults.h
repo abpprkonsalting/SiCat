@@ -31,6 +31,7 @@ struct conf_t default_conf[] = {
 
     //  Where to look for form templates?
     { (gchar*)"DocumentRoot",	 (gchar*)NC_DOCUMENT_ROOT },
+    { "SplashForm",	"splash.html" },
 
     //  Default log level.
     { (gchar*)"Verbosity",	(gchar*)"5" },

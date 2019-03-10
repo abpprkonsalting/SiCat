@@ -1,4 +1,5 @@
-#include "websck.h"
+//#include "websck.h"
+# include "gateway.h"
 
 extern GHashTable* peer_tab;
 extern class comm_interface* wsk_comm_interface;
@@ -1207,6 +1208,7 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 			set_last_access_time();
 			
 		}
+		
 	}
 	
 	if (comando != NULL){

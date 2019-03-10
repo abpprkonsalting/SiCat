@@ -2,7 +2,7 @@
 # include <string.h>
 # include <unistd.h>
 # include <time.h>
-# include "websck.h"
+# include "gateway.h"
 
 GHashTable* peer_tab; 
 unsigned long int total_connections = 0;
@@ -14,7 +14,7 @@ gchar* target_redirect(http_request *h){
     gchar *orig, *host   = HEADER("Host"); 
     
     if ( host != NULL ) {
-		orig = g_strdup_printf( "http://%s%s", HEADER("Host"), h->uri );
+		orig = g_strdup_printf( "http://%s%s", host, h->uri );
     } else {
 		orig = CONF("HomePage");
     }
@@ -60,7 +60,7 @@ void accept_peer ( http_request *h ) {
 void remove_peer ( peer *p ) {
 	
     g_message( "Removing peer %s", p->ip );
-    peer_deny( nocat_conf, p );
+    peer_deny(nocat_conf, p);
 }
 
 gboolean check_peer_expire ( gchar *ip, peer *p, time_t *now ) {

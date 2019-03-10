@@ -178,8 +178,8 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 
     h->method = g_strdup( items[0] );
     h->uri    = g_strdup( items[1] );
-    // g_message( "method: %s", h->method );
-    // g_message( "uri: %s", h->uri );
+    g_message( "method: %s", h->method );
+    g_message( "uri: %s", h->uri );
     g_strfreev( items );
 
     for (i = 1; lines[i] != NULL && lines[i][0] != '\0'; i++ ) {
@@ -199,11 +199,11 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 			
 			g_debug("Header in: %s=%s", key, val );
 			
-			referer = strstr(val, (const char *)"http://www.datalnet.com");
+			referer = strstr(val, (const char *)"http://192.168.1.1");
 			
 			if (referer != NULL) {
 				
-				//g_message("encontrado el referer");
+				g_message("encontrado el referer");
 				h->perm = TRUE;
 				referer = FALSE;
 			}
@@ -319,14 +319,14 @@ GIOError http_send_header ( http_request *h, int status, const gchar *msg, peer 
     g_string_sprintfa( hdr, "HTTP/1.1 %d %s\r\n", status, msg );
     g_hash_table_foreach( h->response, (GHFunc) http_compose_header, hdr );
     
-    g_string_append( hdr, "Cache-Control: max-age=0\r\n");
+    //g_string_append( hdr, "Cache-Control: max-age=0\r\n");
     
     g_string_append( hdr, "\r\n" );
     //g_debug("Header out: %s", hdr->str);
     
     //requests->get_ride_of_sombies();
     
-    if (p != NULL) g_string_assign(p->first_redirect,hdr->str);
+    //if (p != NULL) g_string_assign(p->first_redirect,hdr->str);
     
     r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
     g_message("sent header: %s",hdr->str);
@@ -338,12 +338,8 @@ GIOError http_send_header ( http_request *h, int status, const gchar *msg, peer 
 void http_send_redirect( http_request *h, gchar *dest, peer *p ) {
 	
     http_add_header ( h, "Location", dest );
-    http_send_header( h, 303, "See Other", p );
+    http_send_header( h, 302, "Moved", p );
     //g_message("voy a retornar");
-    
-    g_io_channel_shutdown(h->sock,FALSE,NULL);
-	g_io_channel_unref( h->sock );
-	requests->remove(h);
 }
 
 gchar *http_fix_path (const gchar *uri, const gchar *docroot) {
@@ -403,6 +399,7 @@ int http_open_file (const gchar *path, int *status) {
 }
 
 int http_serve_file ( http_request *h, const gchar *docroot ) {
+	
     gchar *path;
     int fd, status;
 
@@ -420,26 +417,27 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     return ( fd != -1 );
 }
 
-int http_serve_template ( http_request *h, gchar *file, GHashTable *data ) {
+GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 ) {
+	
     gchar *form;
-    guint r, n;
+    guint n;
+    GIOError r;
 
-    form = parse_template( file, data );
+    form = parse_template( file, data1 );
     n = strlen(form);
 
     http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
-    http_send_header( h, 200, "OK", NULL );
+    http_send_header( h, 200, "OK", NULL);
 
     r = g_io_channel_write( h->sock, form, n, &n );
 
     g_free( form );
 
     if ( r != G_IO_ERROR_NONE ) {
-	g_warning( "Serving template to %s failed: %m", h->peer_ip );
-	return 0;
+		g_warning( "Serving template to %s failed: %m", h->peer_ip );
     }
 
-    return 1;
+    return r;
 }
 
 guint http_request_read (http_request *h) {

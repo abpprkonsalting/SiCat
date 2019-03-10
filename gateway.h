@@ -1,5 +1,6 @@
 //# include "http.h"
 # include "firewall.h"
+# include "websck.h"
 
 gchar* target_redirect ( http_request *h );
 gchar* local_host( http_request *h );
@@ -12,4 +13,5 @@ gboolean check_peer(class m_frame* frame);
 
 /*** actually defined in either open.c or passive.c ***/
 int handle_request( http_request *h );
+void splash_peer ( http_request *h );
 

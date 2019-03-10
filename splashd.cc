@@ -65,7 +65,7 @@ gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 			}
 			else {
 				
-				h->is_used = TRUE;
+				//h->is_used = TRUE;
 				if (handle_request(h) == 0) return FALSE;
 				
 			}

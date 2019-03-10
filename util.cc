@@ -32,16 +32,16 @@ gboolean g_hash_delete(GHashTable * h, const gchar *key) {
     gpointer k, v;
     gchar *kk, *vv;
 
-    g_assert( h   != NULL );
-    g_assert( key != NULL );
+    //g_assert( h   != NULL );
+    //g_assert( key != NULL );
 
     // if (g_hash_table_lookup_extended(h, key, (gpointer *)&k, (gpointer *)&v)) {
     if (g_hash_table_lookup_extended(h, key, &k, &v)) {
-	g_hash_table_remove(h, key);
-        kk = ((gchar *) k);
-        vv = ((gchar *) v);
-	if (kk != NULL) g_free(kk);
-	if (vv != NULL) g_free(vv);
+		g_hash_table_remove(h, key);
+			kk = ((gchar *) k);
+			vv = ((gchar *) v);
+		if (kk != NULL) g_free(kk);
+		if (vv != NULL) g_free(vv);
 	return TRUE;
     }
     return FALSE;
@@ -51,27 +51,34 @@ gboolean g_hash_set(GHashTable *h, const gchar *key, gchar *val) {
     gchar *k, *v;
     gboolean over;
 
-    g_assert( h   != NULL );
-    g_assert( key != NULL );
-    g_assert( val != NULL );
-
+    //g_assert( h   != NULL );
+    //g_assert( key != NULL );
+    //g_assert( val != NULL );
+	
+	//g_message("antes del delete %s: %s",key,val);
+	
     over = g_hash_delete(h, key);
     k = g_strdup(key);
     v = g_strdup(val);
+    
+    //g_message("después del delete %s: %s",k,v);
     g_hash_table_insert(h, k, v);
     return over;
 }
 
 static void g_hash_dup_each ( gchar *k, gchar *v, GHashTable *dest ) {
-    g_hash_set( dest, k, v );
+	
+	g_hash_set( dest, k, v );
 }
 
 GHashTable *g_hash_merge( GHashTable *dest, GHashTable *src ) {
     g_hash_table_foreach( src, (GHFunc) g_hash_dup_each, dest );
+    //g_message("returning from g_hash_merge");
     return dest;
 }
 
 GHashTable *g_hash_dup( GHashTable *src ) {
+	//g_message("entré en g_hash_dup");
     GHashTable *dest = g_hash_new();
     return g_hash_merge( dest, src );
 }
@@ -198,44 +205,59 @@ gchar *load_file( const char *path ) {
 }
 
 
-gchar *parse_template( gchar *src, GHashTable *data ) {
+gchar *parse_template( gchar *src, GHashTable *data1 ) {
+	
     GString *dest = g_string_sized_new(strlen(src));
     guint n;
     gchar *var, *val;
 
     for (; *src != '\0'; src++) {
-	// Find the text chunk up to the next $, 
-	// and append it to the buffer.
-	n = strcspn( src, "$" );
-	if (n) {
-	    g_string_sprintfa( dest, "%.*s", n, src );
-	    src += n;
-	    if ( *src == '\0' )
-		break;
-	}
+    	
+		// Find the text chunk up to the next $, 
+		// and append it to the buffer.
+		
+		n = strcspn( src, "$" );
+		if (n) {
+			g_string_sprintfa( dest, "%.*s", n, src );
+			src += n;
+			if ( *src == '\0' )
+			break;
+		}
+			//g_message( "voy por 3.1");
+		// If the immediately following char is alphabetical...
+		if (isalpha(*( src + 1 ))) {
+			// Find the identifier following the $
+			for (n = 2; isident(src[n]); n++);
 
-	// If the immediately following char is alphabetical...
-	if (isalpha(*( src + 1 ))) {
-	    // Find the identifier following the $
-	    for (n = 2; isident(src[n]); n++);
+			// Having found it, copy the variable name out
+			// and get the corresponding value.
+			var = g_strndup( src + 1, --n );
+			val = (gchar*) g_hash_table_lookup( data1, var );
+			if (val)	g_string_append(dest, val);
+			g_free(var);
 
-	    // Having found it, copy the variable name out
-	    // and get the corresponding value.
-	    var = g_strndup( src + 1, --n );
-	    val = (gchar*) g_hash_table_lookup( data, var );
-	    if (val)
-		g_string_append(dest, val);
-	    g_free(var);
-
-	    src += n;
-	} else {
-	    // Otherwise save the $
-	    g_string_append(dest, "$");
-	}
+			src += n;
+				//g_message( "voy por 3.2");
+		} 
+		else {
+			// Otherwise save the $
+			g_string_append(dest, "$");
+				//g_message( "voy por 3.3");
+		}
     }
     
-    val = g_renew( gchar, dest->str, strlen(dest->str) + 1 );
-    g_string_free( dest, 0 );
+    //val = g_renew( gchar, dest->str, strlen(dest->str) + 1 );
+    
+    val = g_try_new0 (gchar, strlen(dest->str) + 1);
+    if (val != NULL){
+    	
+    	memcpy(val,dest->str,strlen(dest->str));
+	}
+	else g_message ("util.cc parse_template: could not allocate space for return value");
+    
+    	//g_message( "voy por 3.4");
+    g_string_free( dest, FALSE );
+    //g_message( "voy por 3");
     return val;
 }
 

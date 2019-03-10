@@ -107,16 +107,16 @@ for iface in $InternalDevice; do
 		# Allow web traffic to the specified hosts, and don't capture
 		# connections intended for them.
 		#
-		if [ "$AuthServiceAddr" -o "$AllowedWebHosts" ]; then 
-			for host in $AuthServiceAddr $AllowedWebHosts; do
-				for port in 80 443; do
-					$nat      -s $net -d $host -p tcp --dport $port -j MASQUERADE
-					$redirect -s $net -d $host -p tcp --dport $port -j ACCEPT
-					$fwd -s $net -d $host -p tcp --dport $port -j ACCEPT
-					$fwd -d $net -s $host -p tcp --sport $port -j ACCEPT
-				done
-			done
-		fi
+		#if [ "$AuthServiceAddr" -o "$AllowedWebHosts" ]; then 
+		#	for host in $AuthServiceAddr $AllowedWebHosts; do
+		#		for port in 80 443; do
+		#			$nat      -s $net -d $host -p tcp --dport $port -j MASQUERADE
+		#			$redirect -s $net -d $host -p tcp --dport $port -j ACCEPT
+		#			$fwd -s $net -d $host -p tcp --dport $port -j ACCEPT
+		#			$fwd -d $net -s $host -p tcp --sport $port -j ACCEPT
+		#		done
+		#	done
+		#fi
 
 		for fwmark in $classes; do
 			# Only forward tagged traffic per class

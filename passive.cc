@@ -6,8 +6,11 @@
 # include <sys/types.h>
 # include <sys/wait.h>
 # include <unistd.h>
-//# include "gateway.h"
-# include "websck.h"
+# include "gateway.h"
+//# include "websck.h"
+
+extern class h_requests* requests;
+//gchar *splash_page = NULL;
 
 /*struct redirect{
 	
@@ -15,8 +18,6 @@
 	GString* dest;
 };*/
 
-extern class comm_interface* wsk_comm_interface;
-extern gchar* macAddressFrom;
 //extern class files_array* clients_fw_files_array;
 //struct redirect* redire;
 
@@ -31,10 +32,7 @@ extern gchar* macAddressFrom;
 	return TRUE;
 }*/
 
-void capture_peer ( http_request *h, peer *p ) {
-	
-    /* Esta función lo que hace es enviar al usuario que se está conectando un http redirect
-     * para que vuelva a enviar la petición http pero esta vez dirigida al servidor auth */
+/*void capture_peer ( http_request *h, peer *p ) {
 	
 	if (h->perm) {
 		if (p->status != 2) {
@@ -43,75 +41,51 @@ void capture_peer ( http_request *h, peer *p ) {
 			h->perm = FALSE;
 			g_message("peer en proceso de autentificación, permitiendolo por el grace period...");
 			peer_permit (nocat_conf,p,h);
-			
-			/*char *dest = (char*)calloc(1,110);
-			GIOError r;
-    		int n;
-			memcpy ((char*)dest, (const char *)"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://connect.facebook.net/en_US/sdk.js\r\n\r\n", 100);
-			r = g_io_channel_write( h->sock, dest, strlen(dest), (guint*)&n );
-    		g_message("sent header: %s",dest);*/
 		}
 	}
 	else {
 		
-		gchar* redir = target_redirect( h );
-    	//gchar* gw_addr = local_host( h );
-    	GHashTable* args = g_hash_new();
-    	GString* dest;
-
-    	g_hash_set( args, "redirect",	redir );
-    	g_hash_set( args, "usertoken",	get_peer_token(p) );
-    	g_hash_set( args, "userMac",    p->hw );
-    	g_hash_set( args, "deviceMac",	macAddressFrom);
-    	//g_hash_set( args, "timeout",	CONF("LoginTimeout") );
-    	//g_hash_set( args, "gateway",	gw_addr );
-
-    	dest = build_url( CONF("AuthServiceURL"), args );
+		/*char *dest = (char*)calloc(1,110);
+		GIOError r;
+    	int n;
+		memcpy ((char*)dest,(const char *)"HTTP/1.1 303 See Other\r\nLocation: http://192.168.1.1/splash.html\r\n\r\n",74);
+		r = g_io_channel_write(h->sock, dest, strlen(dest), (guint*)&n );
+    	g_message("sent first header: %s",dest);
     	
-    	// Antes de enviarle la redirección al cliente debo garantizar que el websocket está abierto 
-		// para recibir la respuesta. Esto se hace enviando un comando NULL a través de la interface
-		// del websocket. Si el websocket está activo esto no hace nada, si está cerrado lo abre y 
-		// envía un comando init.
+		free(dest);
 		
-		// Esto tengo que arreglarlo, pues llamar wsk_send_command no garantiza que el websocket se haya
-		// establecido correctamente. Además, en función de si el wsk se estableció o no debo enviarle
-		// al usuario el redirect o una página informándole del error de conexión con el servidor y 
-		// que contacte a la administración, etc..
-		
-		// Todos los comentarios anteriores no son válidos. Al cliente se le envía la redirección esté
-		// o no abierto el wsk. El proceso de autentificación en el servidor es quien se debe encargar
-		// de no decirle al usuario que ya tiene internet libre hasta que reciba confirmación desde el
-		// dispositivo de que esa acción se realizó. La línea de abajo solo tiene el objetivo de inicializar
-		// el websocket en caso de que esté inactivo, para tratar de garantizar que el servidor tenga
-		// como enviar la autorización del usuario. 
-	
-		wsk_comm_interface->wsk_send_command(NULL,NULL,NULL);
-
-		//***********************************************************************************************
-		/*Added lines by abp*/
-
 		gint fid = g_io_channel_unix_get_fd(h->sock);
 		struct sockaddr_in remote_socket;	
-		socklen_t n = sizeof(struct sockaddr_in);
-
-		getpeername (fid, (struct sockaddr *)&remote_socket,  &n );
-
+		socklen_t n1 = sizeof(struct sockaddr_in);
+		getpeername (fid, (struct sockaddr *)&remote_socket,  &n1 );
 		g_message( "Captured peer %s:%d", h->peer_ip,remote_socket.sin_port );
 
-		//***********************************************************************************************
 		
-		//p->status = 2;
-		//peer_permit (nocat_conf,p,h);
+		g_io_channel_shutdown(h->sock,FALSE,NULL);
+		g_io_channel_unref(h->sock );
+		requests->remove(h);
 		
-		//sleep(5);
-		
-		http_send_redirect(h, dest->str,p);
+		splash_peer(h);
+    }
+}*/
+
+void capture_peer ( http_request *h ) {
 	
-		g_string_free( dest, 1 );
-		g_hash_free( args );
-		//g_free( gw_addr );
-		g_free( redir );
-	}
+    gchar *dest, *orig = target_redirect(h);
+    gchar *redir = url_encode(orig);
+
+    dest   = g_strdup_printf( "http://%s:%s/?redirect=%s",
+	h->sock_ip, CONF("GatewayPort"), redir ); 
+
+    http_send_redirect( h, dest, NULL );
+
+    g_message( "Captured peer %s", h->peer_ip );
+    
+    //g_message( "dest: %s", dest);
+
+    g_free( orig  );
+    g_free( redir );
+    g_free( dest  );
 }
 
 void logout_peer( http_request *h, peer *p ) {
@@ -120,160 +94,7 @@ void logout_peer( http_request *h, peer *p ) {
     http_send_redirect( h, CONF("LogoutURL"), NULL );
 }
 
-/*GHashTable* gpg_decrypt( char* ticket ) {
-	
-    int rfd[2], wfd[2], r;
-    gchar *gpg, *msg;
-    gchar **arg;
-    GHashTable *data;
-    pid_t pid;
-
-    gpg = parse_template( CONF("DecryptCmd"), nocat_conf );
-    arg = g_strsplit( gpg, " ", 0 );
-
-    r = pipe(rfd);
-    if (r) {
-	g_error("Can't open read pipe to gpg: %m");
-	return 0;
-    }
-
-    r = pipe(wfd);
-    if (r) {
-	g_error("Can't open write pipe to gpg: %m");
-	return NULL;
-    }
-
-    pid = fork();
-    if (pid == -1) {
-	g_error( "Can't fork to exec gpg: %m" );
-	return NULL;
-
-    } else if (pid == 0) {
-	dup2( wfd[0], STDIN_FILENO );
-	close( wfd[1] );
-
-	dup2( rfd[1], STDOUT_FILENO );
-	close( rfd[0] );
-
-	r = execv( *arg, arg );
-	g_error( "execv %s (%s) failed: %m", gpg, *arg ); // Shouldn't happen.
-	exit(-1);
-    } 
-
-    close( wfd[0] );
-    close( rfd[1] );
-
-    msg = g_new0(char, BUFSIZ);
-    g_snprintf( msg, BUFSIZ,
-	"-----BEGIN PGP MESSAGE-----\n\n"
-	"%s\n"
-	"-----END PGP MESSAGE-----",
-	ticket );
-    r = write( wfd[1], msg, strlen(msg) ); 
-    if (r == -1){ g_error( "Can't write to gpg pipe: %m" );}
-    close( wfd[1] );
-
-    r = read( rfd[0], msg, BUFSIZ ); 
-    g_assert( r > 0 );
-    close( rfd[0] );
-    msg[r] = '\0';
-
-    waitpid( pid, &r, 0 );
-    if (! WIFEXITED( r ))
-	g_warning( "gpg returned error: %d (signal %d)", 
-	    WEXITSTATUS(r), WIFSIGNALED(r) ? WTERMSIG(r) : 0 );
-
-    data = parse_conf_string( msg );
-
-    g_strfreev( arg );
-    g_free( gpg );
-    g_free( msg );
-
-    return data;
-}*/
-
-/*int verify_peer( http_request *h, peer *p ) {
-	
-    GHashTable* msg;
-    gchar *action, *mode, *dest;
-    gchar *ticket = QUERY("ticket");
-    GString *m;
-
-    if (ticket == NULL) {
-		g_warning("Invalid ticket from peer %s", p->ip);
-		return 0;
-    }
-
-    msg = gpg_decrypt( QUERY("ticket") );
-    m = g_hash_as_string(msg);
-    g_message( "auth message: %s", m->str);
-
-    // Check username if set
-    // Check MAC
-    // Check token
-
-    // Set user
-    // Set groups
-    // Set token
-
-    action = (gchar*) g_hash_table_lookup(msg, "Action");
-    if (strcmp( action, "Permit" ) == 0) {
-    	
-		accept_peer( h );
-    } else if (strcmp( action, "Deny" ) == 0) {
-    	
-		remove_peer( p );
-    } else {
-    	
-		g_warning("Can't make sense of action %s!", action);
-    }
-
-
-    mode = (gchar*)g_hash_table_lookup(msg,"Mode");
-    dest = (gchar*)g_hash_table_lookup(msg,"Redirect"); 
-    if (strncmp(mode, "renew", 5) == 0) {
-		http_send_header( h, 304, "No Response" );
-    } else {
-		http_send_redirect( h, dest );
-    }
-
-    g_hash_free( msg );
-    return 1;
-}*/
-
-/*void handle_request( http_request* h ) {
-	
-    gchar* hostname = HEADER("Host");
-    gchar* sockname = local_host(h);
-    peer* p = find_peer(h->peer_ip);
-    int r;
-
-    g_assert(sockname != NULL);
-    g_assert(hostname != NULL);
-
-    if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
-    	
-		capture_peer(h, p);
-    }
-    else if (strcmp( h->uri, "/logout" ) == 0) {
-    	
-		// logout
-		logout_peer(h, p);
-		// } else if (strcmp( h->uri, "/status" ) == 0) {
-		// status
-		// display_status(h, p);
-    } 
-    else {
-    	
-		// user with a ticket
-		r = verify_peer(h, p);
-		if (!r) capture_peer(h, p);
-    }
-
-    g_free(sockname);
-}*/
-
-int handle_request( http_request* h ) {
+/*int handle_request( http_request* h ) {
 	
     gchar* hostname = HEADER("Host");
     gchar* sockname = local_host(h);
@@ -289,14 +110,138 @@ int handle_request( http_request* h ) {
 	}
 	else returno = 1;
     
-    //else if (strcmp( h->uri, "/logout" ) == 0) {
-    	
-		// logout
-	//	logout_peer(h, p);
-		// } else if (strcmp( h->uri, "/status" ) == 0) {
-		// status
-		// display_status(h, p);
-    //}
     g_free(sockname);
     return returno;
+}*/
+
+int handle_request( http_request *h ) {
+	
+	peer* p = find_peer(h->peer_ip);
+	
+    gchar *hostname = HEADER("Host");
+    gchar *sockname = local_host(h);
+
+    //g_assert( sockname != NULL );
+
+    if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
+
+		capture_peer(h);
+    }
+    else if (strcmp( h->uri, "/" ) == 0) {
+
+		if ( QUERY("mode_login") != NULL || QUERY("mode_login.x") != NULL ) {
+			
+			//accept_peer(h);
+			//sleep(2);
+			//http_send_redirect( h, QUERY("redirect"),NULL );
+			
+			if (p->status != 2) {
+			
+				p->status = 2;
+				//h->perm = FALSE;
+				g_message("peer en proceso de autentificación, permitiendolo por el grace period...");
+				peer_permit (nocat_conf,p,h);
+				g_free( sockname );
+				return 0;
+			}
+			
+			
+		}
+		else if ( QUERY("redirect") != NULL ) {
+			
+			splash_peer(h);
+		} 
+		else {
+			
+			capture_peer(h);
+		}
+    }
+    /*else if (strcmp( h->uri, "/status" ) == 0) {
+		status_page( h );
+    }*/ 
+    else {
+		http_serve_file( h, CONF("DocumentRoot") );
+    }
+
+    g_free( sockname );
+    return 1;
+}
+
+/*void splash_peer ( http_request *h ) {
+	
+    GHashTable *data1;
+    gchar *path = NULL, *file, *action, *host;
+    GIOError r;
+   
+	g_message( "entre en splash_peer");
+    //host = local_host(h);
+    //action = g_strdup_printf("http://%s/",host);
+    
+    action = g_strdup_printf("http://%s%s",HEADER("Host"),h->uri);
+    
+    g_message( "action: %s",action);
+    
+    data1 = g_hash_dup(nocat_conf);
+    g_message( "voy por 1");
+    //g_hash_merge( data1, h->query );
+    g_message( "voy por 1.5");
+    g_hash_set( data1, "action", action );
+    g_message( "voy por 1.75");
+
+    /*if (splash_page) {
+		file = splash_page;
+    } 
+   	else {
+		path = http_fix_path(CONF("SplashForm"), CONF("DocumentRoot"));
+		file = load_file(path);
+    }
+
+	path = http_fix_path(CONF("SplashForm"), CONF("DocumentRoot"));
+	
+	g_message( "path: %s",path);
+	
+	file = load_file(path);
+	
+	g_message( "file: %s",file);
+	
+	g_message( "voy por 2");
+	
+    r = http_serve_template( h, file, data1 );
+    if (r == G_IO_ERROR_NONE) g_message( "Splashed peer %s", h->peer_ip );
+
+    g_hash_free( data1 );
+    g_free( action );
+    g_free( host );
+    if ( path != NULL ) {
+		g_free( file );
+		g_free( path );
+    }
+}*/
+
+void splash_peer ( http_request *h ) {
+	
+    GHashTable *data;
+    gchar *path = NULL, *file, *action1, *host;
+    GIOError r;
+   
+    host = local_host( h );
+    action1 = g_strdup_printf("http://%s/", host);
+    data = g_hash_dup( nocat_conf );
+    g_hash_merge( data, h->query );
+    g_hash_set( data, "action1", action1 );
+	
+	path = http_fix_path( CONF("SplashForm"), CONF("DocumentRoot") );
+	file = load_file( path );
+	
+    r = http_serve_template( h, file, data );
+    if (r == G_IO_ERROR_NONE)
+	g_message( "Splashed peer %s", h->peer_ip );
+
+    g_hash_free( data );
+    g_free( action1 );
+    g_free( host );
+    if ( path != NULL ) {
+	g_free( file );
+	g_free( path );
+    }
 }

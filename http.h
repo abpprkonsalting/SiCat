@@ -77,6 +77,6 @@ gchar *http_mime_type (const gchar *path);
 int http_open_file (const gchar *path, int *status);
 ssize_t http_sendfile ( http_request *h, int in_fd );
 int http_serve_file ( http_request *h, const gchar *docroot );
-int http_serve_template ( http_request *h, gchar *file, GHashTable *data );
+GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data );
 
 gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h );

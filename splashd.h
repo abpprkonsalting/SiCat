@@ -14,7 +14,7 @@
 #include <getopt.h>
 #include <stdarg.h>
 
-# include "websck.h"
+# include "gateway.h"
 
 extern GHashTable* peer_tab;
 static int exit_signal = 0;

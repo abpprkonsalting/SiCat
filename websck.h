@@ -5,7 +5,7 @@
 # include <libwebsockets.h>
 //# include <private-libwebsockets.h>
 
-# include "gateway.h"
+//# include "gateway.h"
 
 #ifndef MFRAME
 #define MFRAME 1
