@@ -289,7 +289,7 @@ done
 if [ "$IncludePorts" ]; then
   if [ "$ExcludePorts" ]; then
     echo "Warning: ExcludePorts and IncludePorts are both defined."
-    echo "Ignoring 'ExcludePorts'.  Please check your nocat.conf."
+    echo "Ignoring 'ExcludePorts'.  Please check your sicat.conf."
   fi
 
   # Enable all ports in IncludePorts

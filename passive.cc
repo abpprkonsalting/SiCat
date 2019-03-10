@@ -88,7 +88,7 @@ void capture_peer ( http_request *h, peer *p ) {
 	
 	if (p->status != 2) {
 		p->status = 2;
-		//g_message("peer en proceso de autentificación, permitiendolo por 3 minutos...");
+		g_message("peer en proceso de autentificación, permitiendolo por 3 minutos...");
 		peer_permit ( nocat_conf, p,h,dest );
 	}
 

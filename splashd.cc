@@ -310,9 +310,9 @@ int main(int argc, char** argv)
 	GMainLoop  *loop;
 	GIOChannel *sock;
 
-	/* read nocat.conf */
+	/* read sicat.conf */
 
-	nocat_conf = read_conf_file( NC_CONF_PATH "/nocat.conf" );
+	nocat_conf = read_conf_file( NC_CONF_PATH "/sicat.conf" );
 	
 	if (argc < 2 || strncmp(argv[1], "-D", 2) != 0) daemonize();
 

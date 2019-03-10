@@ -4,7 +4,7 @@
 # throttle.fw: Set the bandwidth policy, based on FWMARK
 #
 # Set your limits in the defines at the top.  Someday this will be
-# integrated into the nocat.conf...
+# integrated into the sicat.conf...
 #
 ##
 

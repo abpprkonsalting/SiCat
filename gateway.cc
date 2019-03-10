@@ -75,17 +75,17 @@ gboolean check_peer_expire ( gchar *ip, peer *p, time_t *now ) {
     }
 }
 
-void compare_token( gchar* ip, peer* p, struct mi_struct* fr){
+void compare_token( gchar *ip, peer *p, struct mi_struct* fr){
 	
 	if (!fr->encontrado){
 		if (strcmp(p->token,fr->trama->parameters->items[1]->valor) == 0){
 			
 			fr->encontrado = TRUE;			
 			if (strcmp(fr->trama->parameters->items[0]->valor,"true") == 0){
-				//g_message("peer autenticado, permitiendolo por todo el timeout...");
-				peer_deny (nocat_conf, p);
+				g_message("peer autenticado, permitiendolo por todo el timeout...");
+				peer_deny ( nocat_conf, p );
 				p->status = 0;
-				peer_permit (nocat_conf, p,NULL,NULL);
+				peer_permit ( nocat_conf, p,NULL,NULL );
 			}
 		}
 	}

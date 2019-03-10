@@ -3,7 +3,7 @@
 # include <string.h>
 # include <time.h>
 # include <libwebsockets.h>
-# include <private-libwebsockets.h>
+//# include <private-libwebsockets.h>
 
 # include "gateway.h"
 

@@ -1151,7 +1151,7 @@ void comm_interface::wsk_create_context(void){
 
 void comm_interface::wsk_client_connect (void){
 	
-	// Here there must be selected from the configuration file (nocat.conf), or from the structure nocat_conf, the right value
+	// Here there must be selected from the configuration file (sicat.conf), or from the structure nocat_conf, the right value
 	// of the variable wsk_server_address based in an specific algorithm. The objetive is to stablish a redundant infrastructure
 	// of servers for connect. When that is done the second parameter of libwebsocket_client_connect should change and the whole
 	// instruction should be inserted inside a loop that change that parameter until the connection is made. This mecanism should

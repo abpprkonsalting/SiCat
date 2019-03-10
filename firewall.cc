@@ -115,8 +115,8 @@ gboolean redirecciona_delayed ( redire* red ){
 
 void redirecciona(GPid pid,gint status,redire* red){
 	
+	g_timeout_add( 2000, (GSourceFunc) redirecciona_delayed, red );
 	requests->get_ride_of_sombies();
-	g_timeout_add( 2000, (GSourceFunc)redirecciona_delayed, red );
 	
 
 	/*if ( red->h->response == NULL ) red->h->response = g_hash_new();
@@ -149,7 +149,7 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h,	GString*
     
     if (h != NULL) red->h = h;
     if (dest != NULL) red->dest = dest;
-	//g_message("antes del fork..");
+	g_message("antes del fork..");
     pid = fork();
     if (pid == -1){	g_error( "Can't fork: %m" );}
     
@@ -163,7 +163,7 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h,	GString*
     
     if (! pid) {
     	sleep(1);
-    	//g_message("ejecutando el fw_exec");
+    	g_message("ejecutando el fw_exec");
     	fw_exec( act, conf );
 	}
 
@@ -177,7 +177,7 @@ int fw_init ( GHashTable *conf ) {
 }
 
 /******* peer.c routines **********/
-void peer_extend_timeout( GHashTable* conf, peer* p, time_t ext ) {
+void peer_extend_timeout( GHashTable *conf, peer *p, time_t ext ) {
     //p->expire = time(NULL) + conf_int( conf, "LoginTimeout" );
     p->expire = time(NULL) + ext;
 }
@@ -185,10 +185,8 @@ void peer_extend_timeout( GHashTable* conf, peer* p, time_t ext ) {
 peer* peer_new ( GHashTable* conf, const gchar *ip ) {
 	
     peer* p = g_new0( peer, 1 );
-    
-    //g_assert( p != NULL );
-    //g_assert( ip != NULL );
-    
+    g_assert( p != NULL );
+    g_assert( ip != NULL );
     // Set IP address.
     strncpy( p->ip, ip, sizeof(p->ip) );
     // Set MAC address.
@@ -208,7 +206,7 @@ void peer_free ( peer *p ) {
     g_free(p);
 }
 
-int peer_permit ( GHashTable* conf, peer* p, http_request* h,	GString* dest ) {
+int peer_permit ( GHashTable *conf, peer *p, http_request* h,	GString* dest ) {
 	
     /*g_assert( p != NULL );
     if (p->status != 0) {
@@ -227,14 +225,8 @@ int peer_permit ( GHashTable* conf, peer* p, http_request* h,	GString* dest ) {
     	
     	if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h,dest ) == 0)) return -1;
     	
-    	if (p->status == 0) 
-    	{
-    		extension = conf_int( conf, "LoginTimeout" );
-		}
-    	else 
-    	{
-    		extension = 180;
-		}
+    	if (p->status == 0) extension = conf_int( conf, "LoginTimeout" );
+    	else extension = 180;
 	}
 	peer_extend_timeout(conf, p, extension);
     return 0;
@@ -243,7 +235,7 @@ int peer_permit ( GHashTable* conf, peer* p, http_request* h,	GString* dest ) {
 int peer_deny ( GHashTable *conf, peer *p ) {
 	
     g_assert( p != NULL );
-    //g_message("peer status = %d",p->status);
+    g_message("peer status = %d",p->status);
     if (p->status != 1 ) {
     	
 		if (fw_perform( (gchar*)"DenyCmd", conf, p,NULL,NULL) == 0) {

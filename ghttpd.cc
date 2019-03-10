@@ -73,7 +73,7 @@ int main (int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
     signal(SIGINT,  handle_sigint);
 
-    read_conf_file( NC_CONF_PATH "/nocat.conf" );
+    read_conf_file( NC_CONF_PATH "/sicat.conf" );
 
     loop = g_main_new(FALSE);
 

@@ -288,7 +288,7 @@ GIOError http_send_header ( http_request *h, int status, const gchar *msg ) {
     //requests->get_ride_of_sombies();
     
     r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
-    //g_message("sent header: %s",hdr->str);
+    g_message("sent header: %s",hdr->str);
     g_string_free( hdr, 1 );
     
     g_io_channel_shutdown(h->sock,FALSE,NULL);
@@ -303,7 +303,7 @@ void http_send_redirect( http_request *h, gchar *dest ) {
 	
     http_add_header ( h, "Location", dest );
     http_send_header( h, 302, "Moved" );
-    //g_message("voy a retornar");
+    g_message("voy a retornar");
 }
 
 gchar *http_fix_path (const gchar *uri, const gchar *docroot) {
@@ -599,14 +599,14 @@ void h_requests::remove(http_request* h) {
 
 void h_requests::get_ride_of_sombies(){
 	
-	//g_message("getting rid of sombies with cantidad = %d",cantidad);
+	g_message("getting rid of sombies with cantidad = %d",cantidad);
 	
 	for (unsigned int i = 0; i<cantidad;i++){
 		
-		//g_message("checking request %d",g_io_channel_unix_get_fd (items[i]->sock));
+		g_message("checking request %d",g_io_channel_unix_get_fd (items[i]->sock));
 		if (!(items[i]->is_used)) {
 			
-			//g_message("getting rid of sombie %d",g_io_channel_unix_get_fd (items[i]->sock));
+			g_message("getting rid of sombie %d",g_io_channel_unix_get_fd (items[i]->sock));
 			
 			g_io_channel_set_close_on_unref(items[i]->sock,TRUE);
 
