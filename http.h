@@ -19,6 +19,7 @@ typedef struct {
     gchar sock_ip[16];				// Inicializado en http_request_new()
     gchar sock_ip6[50];
     gboolean is_used;
+    guint source_id;
 } http_request;
 
 typedef struct peer_st {

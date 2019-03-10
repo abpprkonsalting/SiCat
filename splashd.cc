@@ -49,9 +49,8 @@ gboolean check_peers( void *dummy ) {
 /************* Read Input Data Connection handle *******/
 gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 	
-	//show_socket_pairs((char*)"handle_read", h);
 	g_debug("handle_read: reading request fd = %d",g_io_channel_unix_get_fd (h->sock));
-	
+	//g_debug("source_id after = %d",h->source_id);
 	guint r;
 	
 	r= http_request_read(h);
@@ -60,11 +59,16 @@ gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 
 		http_request_ok(h);
 			
-		if (handle_request(h) == 0) return FALSE;
+		if (handle_request(h) == 0) {
+			
+			g_debug("handle_read: leaving without shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
+			return FALSE;
+		}
 	
 	}
 	else if (r == 0) {
 		
+		g_debug("handle_read: leaving without shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
 		return TRUE;
 	}
 	
@@ -72,7 +76,6 @@ gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 
 	g_io_channel_shutdown(h->sock,TRUE,NULL);
 	g_io_channel_unref( h->sock );
-	//requests->remove(h);
 	http_request_free (h);
 
 	return FALSE;
@@ -83,24 +86,17 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 
 	GIOChannel* conn;
 	http_request* req; /* defined in http.h */
+	GError* gerror = NULL;
 	int fd,r,n;
 	pid_t mypid;
-	GError* gerror = NULL;
+	guint sourc_id;
+	
 
+	g_debug ("handle_accept: entering..");
 	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
 
-	/* The line below need to be substituted by other error checking method that don't break daemon execution*/
-	//g_assert( fd != -1 );
-	
 	n = fcntl( fd, F_GETFL, 0 );
-    //if (n == -1) g_error("fcntl F_GETFL on %s: %m", ip );
-    //g_message("n = %d",n);
-    
-    //g_message("O_NONBLOCK modified = %d",n & O_NONBLOCK);
-    
     r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
-
-	//if (r == -1) g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
     
     mypid = getpid();
     r = fcntl( fd, F_SETOWN, mypid);
@@ -108,18 +104,18 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 	conn = g_io_channel_unix_new( fd );
 	
 	//g_io_channel_set_encoding(conn,NULL,&gerror);
-	//if (gerror != NULL) g_message(gerror->message);
 	
 	g_io_channel_set_close_on_unref(conn,TRUE);
 	g_io_channel_set_buffer_size(conn,4096);
 	
 	req  = http_request_new( conn, fd );
-	//req = requests->add(conn);
 	
 	if (req != NULL){
 		
 		show_socket_pairs((char*)"handle_accept", req);
-		g_io_add_watch( conn, G_IO_IN, (GIOFunc) handle_read, req );
+		sourc_id = g_io_add_watch(conn, G_IO_IN,(GIOFunc)handle_read, req);
+		//g_debug("source_id before= %d",sourc_id);
+		req->source_id = sourc_id;
 	}
 	else {
 		
@@ -127,6 +123,7 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 		g_io_channel_unref(conn);
 		
 	}
+	g_debug ("handle_accept: leaving..");
 	return TRUE;
 }
 
@@ -300,6 +297,15 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
     unsigned int t = 1;
 	gchar* message_part = NULL;
 	unsigned int width = (unsigned int) CONFd("llwidth");
+	unsigned int mem = (unsigned int) CONFd("lmem");
+	
+	pid_t my_pid;
+	gchar* nombre;
+	gchar* contenido;
+	gsize length;
+	gchar *start_memory, *end_memory;
+	gchar *VmSize, *VmRSS, *VmData, *VmStk, *VmLib;
+	unsigned int memory_size;
 
     switch (log_level & G_LOG_LEVEL_MASK) {
 		case G_LOG_LEVEL_ERROR:	    priority = LOG_ERR;	    break;
@@ -313,6 +319,47 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
     }
 	message_len = strlen(message);
 	
+	if (mem){
+	
+		my_pid = getpid();
+		nombre = g_new0(gchar,100);
+		g_sprintf(nombre,"%s%d%s","/proc/",my_pid,"/status");
+		g_file_get_contents(nombre,&contenido,&length,NULL);
+		g_free(nombre);
+		
+		start_memory = g_strstr_len(contenido,-1,"VmSize:");
+		end_memory = g_strstr_len(contenido,-1,"VmLck:");
+		memory_size = end_memory - start_memory - 9;
+		VmSize = g_strndup(start_memory+8,memory_size);
+		g_strchug(VmSize);
+		
+		start_memory = g_strstr_len(contenido,-1,"VmRSS:");
+		end_memory = g_strstr_len(contenido,-1,"VmData:");
+		memory_size = end_memory - start_memory - 8;
+		VmRSS = g_strndup(start_memory+7,memory_size);
+		g_strchug(VmRSS);
+		
+		start_memory = g_strstr_len(contenido,-1,"VmData:");
+		end_memory = g_strstr_len(contenido,-1,"VmStk:");
+		memory_size = end_memory - start_memory - 9;
+		VmData = g_strndup(start_memory+8,memory_size);
+		g_strchug(VmData);
+		
+		start_memory = g_strstr_len(contenido,-1,"VmStk:");
+		end_memory = g_strstr_len(contenido,-1,"VmExe:");
+		memory_size = end_memory - start_memory - 8;
+		VmStk = g_strndup(start_memory+7,memory_size);
+		g_strchug(VmStk);
+		
+		start_memory = g_strstr_len(contenido,-1,"VmLib:");
+		end_memory = g_strstr_len(contenido,-1,"VmPTE:");
+		memory_size = end_memory - start_memory - 8;
+		VmLib = g_strndup(start_memory+7,memory_size);
+		g_strchug(VmLib);
+		
+		g_free(contenido);
+	}
+		
 	if ( message_len > width ) {
 		
 		result = div(message_len,width);
@@ -322,10 +369,23 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
 	
 	for (unsigned int i = 0; i < t; i++){
 		
-		message_part = g_new0(gchar,width + 2);
+		message_part = g_new0(gchar,width + 2 + 50);
+		
 		strncpy (message_part,message+(i*width),width);
-		syslog( priority | LOG_DAEMON, "%s", message_part);
+		
+		if (mem){
+			if ( i == 0) syslog( priority | LOG_DAEMON, "%s - %s - %s - %s - %s -- %s",VmSize,VmRSS,VmData,VmStk,VmLib,message_part);
+			else syslog( priority | LOG_DAEMON, "%s", message_part);
+		}
+		else syslog( priority | LOG_DAEMON, "%s", message_part);
 		g_free(message_part);
+	}
+	if (mem){
+		g_free(VmSize);
+		g_free(VmRSS);
+		g_free(VmData);
+		g_free(VmStk);
+		g_free(VmLib);
 	}
 	
     //syslog( priority | LOG_DAEMON, message );
@@ -384,7 +444,7 @@ int main(int argc, char** argv)
 	}
 	
 	if (argc < 2 || strncmp(argv[1], "-D", 2) != 0) daemonize();
-
+	
 	/* initalize the log */
 
 	initialize_log();
@@ -430,7 +490,8 @@ int main(int argc, char** argv)
     
 	/* Go! */
 	g_message("main: starting main loop");
-	g_main_run( loop );
+	//g_main_run( loop );
+	g_main_loop_run(loop);
 	g_message("main: exiting main loop");
 	
 	return 0;

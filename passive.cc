@@ -37,6 +37,8 @@ void logout_peer( http_request *h, peer *p ) {
 int handle_request( http_request *h ) {
 	
 	peer* p;
+	
+	g_debug("handle_request: entering..");
 	if (*(h->peer_ip) != 0)	p = find_peer(h->peer_ip);
 	else p = find_peer(h->peer_ip6);
 		
@@ -54,11 +56,11 @@ int handle_request( http_request *h ) {
 				if (p->status != 2) {
 				
 					p->status = 2;
-					//requests->get_ride_of_sombies();
 					if (*(h->peer_ip) != 0) g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip);
 					else g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip6);
 					peer_permit (nocat_conf,p,h);
 					g_free( sockname );
+					g_debug("handle_request: leaving..");
 					return 0;
 				}
 				
@@ -78,7 +80,8 @@ int handle_request( http_request *h ) {
 		}
 
 		g_free(sockname);
-	/*}*/
+	
+	g_debug("handle_request: leaving..");
     return 1;
 }
 

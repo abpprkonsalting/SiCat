@@ -42,6 +42,7 @@ struct conf_t default_conf[] = {
     { (gchar*)"LogFacility",	(gchar*)"syslog" },
     { (gchar*)"SyslogIdent",	(gchar*)"SiCat" },
     { (gchar*)"llwidth",	(gchar*)"100" },
+    { (gchar*)"lmem",	(gchar*)"0" },
 
 	// Websocket defaults
 	{ (gchar*)"wsk_server_address",	(gchar*)"www.datalnet.com"},

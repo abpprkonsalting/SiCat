@@ -138,7 +138,7 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
     h->sock   = sock;
     h->buffer = g_string_new("");
     h->is_used = FALSE;
-
+	h->source_id = 0;
     r = getsockname( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
     if (r == -1) { 
     	g_warning( "http_request_new: getsockname failed: %m" );
@@ -154,7 +154,7 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
     	return NULL;
     }
     r2 = inet_ntop( AF_INET, &addr.sin_addr, h->peer_ip, INET_ADDRSTRLEN );
-
+	
     return h;
 }
 
@@ -199,7 +199,7 @@ void http_request_free ( http_request *h ) {
     g_hash_free( h->header );
     g_hash_free( h->query );
     g_hash_free( h->response );
-    g_string_free( h->buffer, 1 );
+    g_string_free( h->buffer, TRUE );
     g_free( h );
     
 }
@@ -320,6 +320,7 @@ gboolean http_request_ok (http_request *h) {
     gchar *c_len_hdr;
     long int c_len;
 
+	g_debug( "http_request_ok, entering..");
     if (header_end != NULL) {
 
 		c_len_hdr = HEADER("Content-length");
@@ -335,6 +336,7 @@ gboolean http_request_ok (http_request *h) {
 				g_string_free(z, 1);
 			}
 			h->complete++;
+			g_debug( "http_request_ok, leaving..");
 			return TRUE;
 		}
 
@@ -348,10 +350,12 @@ gboolean http_request_ok (http_request *h) {
 			if (strlen(header_end) >= c_len) {
 				http_parse_query(h, header_end);
 				h->complete++;
+				g_debug( "http_request_ok, leaving..");
 				return TRUE;
 			}
 		}
     }
+    g_debug( "http_request_ok, leaving..");
     return FALSE;
 }
 
@@ -372,8 +376,11 @@ void http_printf_header ( http_request *h, gchar *key, gchar *fmt, ... ) {
 }
 
 static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
+	
+	g_debug("http_compose_header: entering..");
     //g_string_sprintfa( buf, "%s: %s\r\n", key, val );
     g_string_append_printf(buf, "%s: %s\r\n", key, val);
+    g_debug("http_compose_header: leaving..");
 }
 
 /*GIOStatus http_send_header ( http_request *h, int status, const gchar *msg, peer *p ) {
@@ -576,6 +583,8 @@ guint http_request_read (http_request *h) {
 	guint n;
 	gchar *c_len_hdr;
 	long int c_len;
+	
+	g_debug("http_request_read: entering..");
 
 	cond = g_io_channel_get_buffer_condition(h->sock);
 	
@@ -609,6 +618,7 @@ guint http_request_read (http_request *h) {
 		if (n == 0){
 
 			g_free(buf);
+			g_debug("http_request_read: leaving with error..");
 			return 2;
 		}
 		
@@ -662,7 +672,7 @@ guint http_request_read (http_request *h) {
 					return 2;
 				}
 			}
-			
+			g_debug("http_request_read: leaving..");
 			return 1;
 			
 		}
@@ -679,7 +689,6 @@ guint http_request_read (http_request *h) {
 	else {
 		
 		g_debug("http_request_read: g_io_channel_get_buffer_condition on request from %s return with buffer condition = %d", h->peer_ip, cond);
-		
 		return 2;
 	}
 }
