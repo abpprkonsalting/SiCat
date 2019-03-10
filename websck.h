@@ -11,6 +11,22 @@
 #define MFRAME 1
 #endif
 
+class files_array {
+
+	unsigned int cant;
+	GIOChannel** items;
+	
+	public:
+	
+	files_array();
+	~files_array();
+	
+	void add_file(int fd);
+	void remove_chann(GIOChannel *channel);
+	GIOChannel* get_item(int fd);
+	
+};
+
 enum STATUSES {
 	WSK_DISCONNECTED,
 	WSK_WAITING_CONFIRM,
@@ -19,6 +35,8 @@ enum STATUSES {
 	WSK_CLOSED,
 	WSK_IDDLE
 };
+
+void parse_status(int status, char* status_char);
 
 int callback_authentication(struct libwebsocket_context * thi, struct libwebsocket *wsi, enum libwebsocket_callback_reasons reason,
 			void *user, void *in, size_t len);
@@ -32,49 +50,55 @@ struct data {
 
 };
 
+struct item {
+	
+	char* nombre;
+	char* valor;
+};
+
 struct params {
 
 	unsigned int cant;
-	char** values;
+	struct item** items;
 };
 
 class m_frame {
 
-	// frame header
+	public:
+	unsigned int Version;
+	unsigned int Type;
+	unsigned int Command;
+	unsigned int FrameCount;
+	unsigned int AckCount;
+	unsigned int BodyFrameSize;
+	char FromDeviceId[40];
+	char ToDeviceId[40];
 
-	unsigned short int m_frame_index;
-	unsigned short int m_frame_index_ack;
-	unsigned short int body_size;
-	char frame_type[2];
-
-	// frame body
-
-	char* command_name;
+	unsigned int cant;
 	struct params* parameters;
-	struct data* datos;
 
 	// other members
 
-	bool readed;
-	unsigned char* m_frame_as_message;
+	//bool readed;
+	//unsigned char* m_frame_as_message;
 
 	public:
 
 	m_frame(char* message, unsigned int m_size, bool* correct);
-	m_frame(char* comando, struct params* parameters_in, struct data* datos_in, bool* correct);
+	//m_frame(char* comando, struct params* parameters_in, struct data* datos_in, bool* correct);
 	~m_frame();
 
 	unsigned short int get_index();
-	unsigned short int get_index_ack();
-	unsigned short int get_body_size();
-	char* get_frame_type();
-	char* get_command_name();
-	struct params* get_parameters();
-	struct data* get_data();
-	bool mark_readed();
-	bool is_readed();
-	unsigned char* as_message();
-	char* print();
+	//unsigned short int get_index_ack();
+	//unsigned short int get_body_size();
+	//char* get_frame_type();
+	//char* get_command_name();
+	//struct params* get_parameters();
+	//struct data* get_data();
+	//bool mark_readed();
+	//bool is_readed();
+	//unsigned char* as_message();
+	//char* print();
 	
 };
 
@@ -115,6 +139,7 @@ class send_messages_queu {
 	bool add_frame(char* comando, struct params* parameters_in, struct data* datos_in);
 	bool delete_frame(unsigned int m_frame_index);
 	void run(struct libwebsocket *wsi,enum STATUSES wsk_status);
+	unsigned short int get_count();
 
 };
 
@@ -155,10 +180,17 @@ class comm_interface {
 	void reset();
 	bool is_init();
 	void clear_init();
+	void set_init();
 	
 	int wsk_send_command(char* comando, struct params* parameters_in, struct data* datos_in);
 	
 	
+};
+
+struct mi_struct{
+	
+	bool encontrado;
+	class m_frame* trama;
 };
 
 

@@ -47,10 +47,10 @@ struct conf_t default_conf[] = {
     { (gchar*)"SyslogIdent",	(gchar*)"NoCat" },
 
     /*** PGP stuff. ***/
-    { (gchar*)"GpgPath",	(gchar*)"/usr/bin/gpg" },
+    /*{ (gchar*)"GpgPath",	(gchar*)"/usr/bin/gpg" },
     { (gchar*)"PGPKeyPath",	(gchar*)NC_PGP_PATH    },
     { (gchar*)"DecryptCmd",	(gchar*)"$GpgPath --decrypt --homedir=$PGPKeyPath "
-			 "--keyring trustedkeys.gpg --no-tty -o-" },
+			 "--keyring trustedkeys.gpg --no-tty -o-" },*/
 
 	/* Websocket defaults*/
 	{ (gchar*)"wsk_server_address",	(gchar*)"0"},

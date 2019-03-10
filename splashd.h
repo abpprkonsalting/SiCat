@@ -19,6 +19,9 @@
 extern GHashTable* peer_tab;
 static int exit_signal = 0;
 static FILE* pid_file = NULL;
+gchar* macAddressFrom; 
 class comm_interface* wsk_comm_interface;
+
+class h_requests* requests;
 
 gboolean show_socket_pairs(gchar* function_name, http_request *h);

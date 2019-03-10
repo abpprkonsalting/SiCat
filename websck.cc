@@ -1,10 +1,14 @@
 #include "websck.h"
 
+extern GHashTable* peer_tab;
 extern class comm_interface* wsk_comm_interface;
+extern gchar* macAddressFrom; 
 
 int callback_authentication(struct libwebsocket_context* thi, struct libwebsocket* wsi, enum libwebsocket_callback_reasons reason, 
 			void *user, void *in, size_t len) {
  
+ 	int x;
+ 	
 	switch (reason) {
 		
 		case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
@@ -40,7 +44,15 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 		case LWS_CALLBACK_CLIENT_RECEIVE:
 			
 			lwsl_notice("LWS_CLIENT_RECEIVE");
-			lwsl_debug("recibidos %d  bytes",len);
+			//lwsl_debug("recibidos %d  bytes",len);
+			lwsl_notice("recibidos %d  bytes",len);
+			lwsl_notice("recibido: %s",(char*)in);
+			
+			if (libwebsocket_is_final_fragment(wsi)) g_message("la trama llegó completa");
+			
+			x = strlen((char*)in);
+			
+			lwsl_notice("contados: %d caracteres",x);
 			
 			wsk_comm_interface->reception_queu->receive_frame((char *)in,len);
 
@@ -53,7 +65,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 			break;
 			
 		case LWS_CALLBACK_CLIENT_WRITEABLE:
-
+			
 			if (wsk_comm_interface->get_status() == WSK_IDDLE){
 				 
 				 lwsl_notice("Begining wsk close secuence..");
@@ -158,15 +170,25 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 
 gboolean call_libwebsocket_service(void* dummy){
 	
+	int r;
+	
 	switch (wsk_comm_interface->get_status()){
 		
 		case WSK_WAITING_CONFIRM:
 		
-			// Aquí debiera incluir un contador para un timeout.
-			//return TRUE;
+			// Aquí tengo que incluir un contador para un timeout, en caso de que se cumpla el timeout
+			// avisar a la administración del sistema del error, poner init en TRUE y poner el wsk en 
+			// estado WSK_CLOSED para que vuelva a intentar conectarse dentro de un segundo.
+
 			break;
 			
 		case WSK_ERROR:
+		
+			// La misma historia que el estado anterior, poner init en TRUE para que cuando wsk_comm_interface->reset
+			// ponga el wsk en estado DISCONNECTED y se vuelva a entrar en esta función no haya que esperar el tiempo
+			// wsk_keep_alive para volver a intentar la conexión. También tengo que avisar a la administración del 
+			// error.
+			
 		
 			wsk_comm_interface->reset();
 			break;
@@ -178,13 +200,18 @@ gboolean call_libwebsocket_service(void* dummy){
 			
 		case WSK_CLIENT_ESTABLISHED:
 		
-			if (difftime(time(NULL),wsk_comm_interface->get_last_access_time())
-				 > wsk_comm_interface->get_wsk_time_out()){
-				 	
-				 wsk_comm_interface->wsk_set_status(WSK_IDDLE);
-				 libwebsocket_callback_on_writable(wsk_comm_interface->get_context(),
-				 									wsk_comm_interface->get_wsi());
+			if ((g_hash_table_size(peer_tab) == 0) && 
+				(wsk_comm_interface->sender_queu->get_count() == 0)){
+			
+				if (difftime(time(NULL),wsk_comm_interface->get_last_access_time())
+					 > wsk_comm_interface->get_wsk_time_out()){
+						
+					 wsk_comm_interface->wsk_set_status(WSK_IDDLE);
+					 libwebsocket_callback_on_writable(wsk_comm_interface->get_context(),
+														wsk_comm_interface->get_wsi());
+				}
 			}
+			else wsk_comm_interface->set_last_access_time();
 			break;
 			
 		case WSK_DISCONNECTED:
@@ -192,18 +219,24 @@ gboolean call_libwebsocket_service(void* dummy){
 			if (!(wsk_comm_interface->is_init())){
 				
 				if (difftime(time(NULL),wsk_comm_interface->get_last_access_time())
-				 > wsk_comm_interface->get_wsk_keep_alive()) {
+				 < wsk_comm_interface->get_wsk_keep_alive()) {
 					
-					wsk_comm_interface->wsk_send_command(NULL, NULL, NULL);
-				 	
+					return TRUE;	
 				}
-				else return TRUE;
 			}
-			else{
+
+			r = wsk_comm_interface->wsk_send_command(NULL, NULL, NULL);
+			
+			if (r == -1){
 				
-				wsk_comm_interface->clear_init();
-				wsk_comm_interface->wsk_send_command(NULL, NULL, NULL);
+				wsk_comm_interface->set_init();
+				
+				// Aquí debo avisar a la administración del sistema de que ha habido un probrema en el
+				// establecimiento del wsk.
+				
+				return TRUE;
 			}
+			else wsk_comm_interface->clear_init(); 
 			
 			break;
 			
@@ -218,142 +251,212 @@ gboolean call_libwebsocket_service(void* dummy){
 		
 }
 
+unsigned int extract_value (const char* token,char* begin,bool* corre){
+
+	unsigned int resultado = 0;
+	char* tempo;
+	*corre = FALSE;
+	
+	char* ptr_begin = strstr(begin, token);
+	if (ptr_begin != NULL){
+		
+		ptr_begin = ptr_begin + strlen(token);
+		char* ptr_end = strchr(ptr_begin,'\"');
+		if (ptr_end != NULL){
+			
+			tempo = (char*)calloc(1,ptr_end - ptr_begin + 1);
+			memcpy(tempo,ptr_begin,ptr_end - ptr_begin);
+		 }
+		else return 0; 
+		resultado = (unsigned int) strtol(tempo,NULL,NULL);
+		free(tempo);
+		*corre = TRUE;
+	}
+	return resultado;
+}
+
+char* extract_value_s (const char* token,char* begin,bool* corre){
+	
+	char* resultado = NULL;
+	*corre = FALSE;
+	
+	char* ptr_begin = strstr(begin, token);
+	if (ptr_begin != NULL){
+		
+		ptr_begin = ptr_begin + strlen(token);
+		char* ptr_end = strchr(ptr_begin,'\"');
+		if (ptr_end != NULL){
+			
+			resultado = (char*)calloc(1,ptr_end - ptr_begin + 1);
+			memcpy(resultado,ptr_begin,ptr_end - ptr_begin);
+		}
+		else return resultado;
+		*corre = TRUE;
+	}
+	return resultado;
+}
+
+void parse_status(int status, char* status_char){
+	
+	switch (status) {
+		
+		case 0:
+		
+			strcpy(status_char,(char*)"WSK_DISCONNECTED");
+			break;
+		
+		case 1:
+		
+			strcpy(status_char,(char*)"WSK_WAITING_CONFIRM");
+			break;
+			
+		case 2:
+		
+			strcpy(status_char,(char*)"WSK_CLIENT_ESTABLISHED");
+			break;
+
+		case 3:
+		
+			strcpy(status_char,(char*)"WSK_ERROR");
+			break;
+			
+		case 4:
+		
+			strcpy(status_char,(char*)"WSK_CLOSED");
+			break;
+			
+		case 5:
+		
+			strcpy(status_char,(char*)"WSK_IDDLE");
+			break;
+			
+		default:
+		
+			strcpy(status_char,(char*)"WSK_UNKNOW");
+			break;
+	}
+}
+
 /***************************** class m_frame methods *******************************/
 #ifdef MFRAME
 
-// class m_frame constructor from a message (parse an arrived message to a class m_frame)
+// class m_frame constructor from a message (parse an arrived xml message to a class m_frame)
 m_frame::m_frame(char* message, unsigned int m_size, bool* correct){
-
-	int left;
-	char* str_temp = NULL, * str_temp1 = NULL, * str_temp2 = NULL;
-
-	command_name = NULL;
-	parameters = NULL;
-	datos = NULL;
-	readed = false;
-	m_frame_as_message = NULL;
-	memset (frame_type,0,2);
-
-	char* buffer_end = message + m_size -1;
-
-	if (m_size >= 20){	//Si el tamaño del mensaje es mayor que el tamaño mínimo del encabezamiento + la secuencia terminal.
-
-		// Basta con que uno de los delimitadores de campos no esté en su lugar para que se descarte
-		// el buffer message como una trama.
-		//g_message("el comando tiene el tamaño mínimo");
-		if ( (memcmp ("_###_", message, 5) != 0) || (memcmp ("_", message + 7, 1) != 0) ||
-			(memcmp ("_", message + 10, 1) != 0 ) || (memcmp ("_", message + 13, 1) != 0 ) ||
-			(memcmp ("_", message + 15, 1) != 0 ) ) return;
-		//g_message("encabezamiento y delimitadores ok");
-		// Adquirir los campos del encabezamiento
-
-		m_frame_index = (unsigned short int)*((char*)message + 5);
-		m_frame_index_ack = (unsigned short int)*((char*)message + 8);
-		body_size = (unsigned short int)*((char*)message + 11);
-		memcpy(frame_type,(char*)message+14,1);//(char)*((char*)message + 14);
-		//g_message("frame_type = %s",frame_type);
-		// si el campo body_size == 0 y el tipo de trama no es acknowledge entonces es un error, retornar.
-		//if ((body_size == 0) && (strcmp("A",frame_type) != 0))	return;
-		if ((body_size == 0) && (memcmp("A",frame_type,1) != 0))	return;
-
-		// Ya se extrajo el encabezamiento, ahora se pasa al cuerpo, empezando por quitar el terminador final.
-		//g_message("procesando el cuerpo del mensaje");
-		message = message + 15;
-		m_size = m_size - 15;
-
-		if (memcmp ("_###_", buffer_end - 4, 5) != 0) return;
+	
+	char* message_remaining = message;
+	*correct = FALSE;
+	
+	//Chequear que el encabezamiento y el terminador xml estén en su sitio.
+	
+	if ((memcmp ("<Protocol", message, 9) != 0) || (strstr (message, "</Protocol>") == NULL)){
 		
-		buffer_end = buffer_end - 4;
-		*(buffer_end) = 0;
-
-		// Ya se extrajo el terminador final, ahora vamos a dividir el área de comandos del área de datos.
-
-		left = buffer_end - message;
-		if (left == 0){	// No hay nada entre el final y el principio del área de comandos.
-
-			if (memcmp("A",frame_type,1) == 0){
-				*correct = true; // Si la trama es ack no hay lío, es correcto.
-				//print();
-			}
-			return;
-
-		}
-		// Buscar el delimitador entre el área de comandos y el área opcional de datos.
-		str_temp = (char*) (memchr (message,':',left)); //parameters
-
-		if (str_temp != NULL){	// Esto significa que se encontró un caracter : que debe delimitar un
-								// área de datos.
-
-			int data_size = (int)((unsigned int) buffer_end - (unsigned int) str_temp);
-
-			if (data_size > 0) {	// Hay datos en la zona de datos.
-
-				datos = g_new0(struct data, 1);
-				datos->size = data_size;
-				datos->binaries = (char*)g_malloc0(data_size);
-				g_memmove(datos->binaries,(str_temp + 1),data_size);
-
-			}
-			*str_temp = 0;
-			buffer_end = str_temp;
-
-			left = buffer_end - message;
-
-			if (left == 0) return;	// Había área de datos pero no de comandos, error.
-
-		}
-		// Ya aquí extraje los datos, de haberlos, ahora a extraer el nombre del comando y los parámetros.
-
-		str_temp = strtok ((char*)(message+1), "_");
-
-		if (str_temp != NULL){
-
-			command_name = (char*)g_malloc0(strlen(str_temp)+2);
-			strcpy(command_name,str_temp);
-
-			bool first_entrance = true;
-
-			while ( (str_temp = (strtok (NULL, "_"))) != NULL){
-
-				if (first_entrance){
-
-					parameters = g_new0(struct params,1);
-					first_entrance = false;
-
-				}
-				str_temp1 = (char*)g_malloc0(strlen(str_temp)+2);
-				strcpy(str_temp1,str_temp);
-
-				parameters->cantidad++;
-				if (parameters->cantidad > 1){
-
-					str_temp2 = (char*)parameters->values;
-
-				}
-				parameters->values = (char**)g_malloc0(parameters->cantidad);
-				if (parameters->cantidad > 1){
-
-					for (unsigned int i = 0;i<parameters->cantidad-1;i++){
-						parameters->values[i] = ((char**)str_temp2)[i];
-					}
-					g_free((char**)str_temp2);
-				}
-				parameters->values[parameters->cantidad-1] = str_temp1;
-			}
-		}
-		else {
-			
-			*correct = false;
-			return;
-		}
-		
-		*correct = true;
+		g_message("trama incorrecta...");
 		return;
 	}
-	else *correct = false;
+	
+	// Buscar el terminador del protocol header, poner un caracter nulo en él y marcar el
+	// próximo caracter como donde vamos a seguir después de parsear el protocolo.
+	
+	char* protocol_header_end = strchr(message_remaining, '>');
+	if (protocol_header_end != NULL){
+		
+		memcpy(protocol_header_end,"\0",1);
+		message_remaining = protocol_header_end + 1;
+	}
+	// Buscar el valor del parámetro Version.
+	
+	Version = extract_value ("Version=\"",message + 8,correct);
+	if (!(*correct)) return; 
+	
+	*correct = FALSE;
+	
+	// Procesamiento de la información de la trama.
+	
+	char* frame_header_begin = strstr (message_remaining, "<Frame ");
+	if (frame_header_begin == NULL) return;
+	
+	frame_header_begin = frame_header_begin + 7;
+	char* frame_header_end = strchr (frame_header_begin,'>');
+	if (frame_header_end != NULL){
+		
+		memcpy(frame_header_end,"\0",1);
+		
+		if (memcmp((frame_header_end-1),"/",1) == 0) message_remaining = NULL; 
+		else message_remaining = frame_header_end + 1;
+	}
+	else return;
+	
+	Type = extract_value ("Type=\"",frame_header_begin,correct);
+	if (!(*correct)) return; 
+	
+	Command = extract_value ("Command=\"",frame_header_begin,correct);
+	if (!(*correct)) return;
+	
+	FrameCount = extract_value ("FrameCount=\"",frame_header_begin,correct);
+	if (!(*correct)) return;
+	
+	AckCount = extract_value ("AckCount=\"",frame_header_begin,correct);
+	if (!(*correct)) return;
+	
+	BodyFrameSize = extract_value ("BodyFrameSize=\"",frame_header_begin,correct);
+	if (!(*correct)) return;
+	
+	if (message_remaining == NULL){
+		
+		*correct = TRUE;
+		return;
+	}
+	else {
+		
+		// Procesamiento de los parámetros.
+		*correct = FALSE;
+		char* parameters_header_begin = strstr (message_remaining, "<Parameters ");
+		if (parameters_header_begin == NULL) return;
+		
+		parameters_header_begin = parameters_header_begin + 12;
+		
+		char* parameters_header_end = strchr (parameters_header_begin,'>');
+		if (parameters_header_end != NULL){
+			
+			memcpy(parameters_header_end,"\0",1);
+			message_remaining = parameters_header_end + 1;
+			parameters = g_new0(struct params,1);
+		}
+		else return;
+		
+		parameters->cantidad = extract_value ("Count=\"",parameters_header_begin,correct);
+		if (!(*correct)) return;
+		
+		parameters->items = g_new0(item*,parameters->cantidad);
+		
+		char *parameter_header_begin, *parameter_header_end;
+		
+		for (unsigned int i = 0;i<parameters->cantidad;i++){
+			
+			parameters->items[i] = g_new0(struct item,1);
+			
+			parameter_header_begin = strstr (message_remaining, "<Parameter ");
+			
+			if (parameter_header_begin == NULL) return;
+			parameter_header_begin = parameter_header_begin + 11;
+			parameter_header_end = strchr (parameter_header_begin,'>');
+			if (parameter_header_end != NULL){
+				
+				memcpy(parameter_header_end,"\0",1);
+				message_remaining = parameter_header_end + 1;
+			}
+			
+			parameters->items[i]->nombre = extract_value_s("Name=\"",parameter_header_begin,correct);
+			if (!(*correct)) return;
+			
+			parameters->items[i]->valor = extract_value_s("Value=\"",parameter_header_begin,correct);
+			if (!(*correct)) return;
+		}
+	}
+	*correct = TRUE;
 }
 
-// class m_frame constructor from fields (build a class m_frame given certain fields)
+/*/ class m_frame constructor from fields (build a class m_frame given certain fields)
 m_frame::m_frame(char* comando, struct params* parameters_in, struct data* datos_in, bool* correct) {
 
 	m_frame_index = 0;
@@ -433,37 +536,35 @@ m_frame::m_frame(char* comando, struct params* parameters_in, struct data* datos
 	else *correct = true;
 	//print();
 	return;
-}
+}*/
 
-// class m_frame destructor
+//class m_frame destructor
 m_frame::~m_frame(){
 
 	//g_message("entré al destructor de m_frames");
 	//g_message("nombre del comando a destruir: %s",command_name);
 	
-	g_free(command_name);
-	
-	if (m_frame_as_message != NULL) g_free(m_frame_as_message);
-	
 	if (parameters != NULL){
+		
 		for (unsigned int i=0; i<parameters->cantidad;i++){
-
-			if (parameters->values[i] != NULL) g_free(parameters->values[i]);
+			
+			if (parameters->items[i] != NULL){
+				
+				if (parameters->items[i]->nombre != NULL) free(parameters->items[i]->nombre);
+				if (parameters->items[i]->valor != NULL) free(parameters->items[i]->valor);
+				free(parameters->items[i]);
+			}
 		}
-	}
-	g_free(parameters);
-
-	if (datos != NULL){
-		if (datos->binaries != NULL) g_free(datos->binaries);
-		g_free(datos);
+		free(parameters);
 	}
 }
 
 unsigned short int m_frame::get_index(){
 
-	return m_frame_index;
+	return FrameCount;
 }
 
+/*
 unsigned short int m_frame::get_index_ack(){
 
 	return m_frame_index_ack;
@@ -555,9 +656,6 @@ unsigned char* m_frame::as_message(){
 	
 	g_memmove(new_pos,"_###_",5);
 	
-	/*bool corr;
-	m_frame* tempo = new class m_frame((char*)buffer,20,&corr);
-	delete tempo;*/
 	
 	
 	return buffer;
@@ -602,7 +700,8 @@ char* m_frame::print(){
 	strcat(cabeza,"_###_");
 	//g_message(cabeza);
 	return cabeza;
-}
+}*/
+
 #endif
 /***************************** end class m_frame methods ***************************/
 
@@ -636,7 +735,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 
 	if (!right){	// Si hubo algún problema en la creación de la clase m_frame eliminarla y retornar false.
 	
-		lwsl_err("ups: trama incorrecta..");
+		lwsl_notice("ups: trama incorrecta..");
 		
 		char* tem = (char*)g_malloc0(message_size + 2);
 		memcpy(tem,message,message_size);
@@ -645,18 +744,21 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 		delete temp_frame;
 		return false;
 	}
+	else lwsl_notice("se recibió la trama correctamente..");
 	
 	// Aquí chequeo si es una trama ack, en caso de serlo por el momento solamente se descarta esta y ya.
 	// En un futuro se deberá chequear en la cola de salida la trama que está esperando por el ack, se elimina de la
 	// cola de salida (tomando las medidas extras necesarias como resetear contadores de espera para reenvío, etc) y 
 	// se elimina la trama ack recientemente llegada.
 	
+	/*	Bloque comentariado temporalmente.
+	
 	if (memcmp(temp_frame->get_frame_type(),"A",1) == 0){
 		lwsl_notice("recibido un ack");
 		delete temp_frame;
 		wsk_comm_interface->set_last_access_time();
 		return true;
-	}
+	}*/
 	
 	// Chequear que no haya otra trama en la cola que tenga el mismo index, de ser así eliminar la trama
 	// llegada y retornar false.
@@ -665,7 +767,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 
 		if (ptr_frames[i]->get_index() == temp_frame->get_index()){
 
-			lwsl_err("repeated frame arrived :%s, descarted...",temp_frame->print());
+			lwsl_notice("repeated frame arrived, descarted...");
 			delete temp_frame;
 			return false;
 		}
@@ -681,9 +783,33 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 	if (ptr_frames != NULL) g_free(ptr_frames);
 	ptr_frames = temp;
 	ptr_frames[count] = temp_frame;
-	lwsl_debug("recibida la trama: %s",ptr_frames[count]->print());
+	//lwsl_debug("recibida la trama: %s",ptr_frames[count]->print());
+	lwsl_notice("recibida una trama");
 	count++;
 	wsk_comm_interface->set_last_access_time();
+	
+	if (temp_frame->Command == 6){
+		
+		if (temp_frame->parameters != NULL){
+			
+			if (temp_frame->parameters->cantidad == 2){
+				
+				if ((temp_frame->parameters->items[0]->nombre != NULL) &&
+					(temp_frame->parameters->items[0]->valor != NULL) &&
+					(temp_frame->parameters->items[1]->nombre != NULL) &&
+					(temp_frame->parameters->items[1]->valor != NULL)) {
+					
+					if ((strcmp(temp_frame->parameters->items[0]->nombre,"IsAuthenticated") == 0) &&
+						(strcmp(temp_frame->parameters->items[1]->nombre,"UserToken") == 0)){
+						
+						//lwsl_notice("llamando a check_peer");
+						g_idle_add((GSourceFunc)check_peer, temp_frame);
+					}
+				}
+			}
+		}
+	}
+	
 	// Aquí tengo que chequear si la trama requiere una respuesta concreta, si no
 	// extraer el index de la trama que me enviaron y responder con un ack. Responder con un ack
 	// significa crear una trama ack y adicionarla a la cola de salida.
@@ -696,7 +822,7 @@ bool received_messages_queu::receive_frame(char* message,size_t message_size){
 bool received_messages_queu::delete_frame(unsigned int m_frame_index){
 
 	for (int i = 0;i<count;i++){
-
+		 
 		if (ptr_frames[i]->get_index() == m_frame_index){
 
 			delete ptr_frames[i];
@@ -758,16 +884,18 @@ send_messages_queu::~send_messages_queu(){
 
 bool send_messages_queu::add_frame(char* comando, struct params* parameters_in, struct data* datos_in){
 
-	bool right = false;
+	//bool right = false;
 
 	// Crear una clase m_frame con la información que se quiere transmitir.
-
+	
+	/* Bloque comentariado temporalmente.
 	class m_frame* temp_frame = new m_frame(comando,parameters_in,datos_in, &right);
-
+	
+	
 	if (!right){	// Si hubo algún problema en la creación de la clase m_frame eliminarla y retornar false.
 		delete temp_frame;
 		return false;
-	}
+	}*/
 
 	// Chequear que no haya otra trama en la cola que tenga el mismo index, de ser así eliminar la trama
 	// llegada y retornar false.
@@ -797,7 +925,7 @@ bool send_messages_queu::add_frame(char* comando, struct params* parameters_in, 
 	}
 
 	ptr_frames = temp;
-	ptr_frames[count] = temp_frame;
+	//ptr_frames[count] = temp_frame;
 	count++;
 	//char* dd = ptr_frames[count]->get_command_name();
 	//g_message(dd);
@@ -815,15 +943,19 @@ void send_messages_queu::run(struct libwebsocket *wsi,enum STATUSES wsk_status){
 		if (ptr_frames != NULL){
 			if (ptr_frames[0] != NULL){	// Hay algo que enviar
 			
+				/* Bloque comentariado temporalmente
 				if (memcmp(ptr_frames[0]->get_frame_type(),"A",1) == 0) message_size = 20;
-				else message_size = 21 + (ptr_frames[0]->get_body_size());
+				else message_size = 21 + (ptr_frames[0]->get_body_size());*/
 				
 				unsigned char buffer[LWS_SEND_BUFFER_PRE_PADDING + message_size + LWS_SEND_BUFFER_POST_PADDING];
 				
 				// _###_00_00_00_C_LISTPARAMS_15_abcd_efgh:1234567890_###_
 				// _###_00_00_00_C_INIT_###_      25 caracteres
 				//g_message ("creando el mensaje desde la m_frame");
+				
+				/* Bloque comentariado temporalmente
 				memcpy(&(buffer[LWS_SEND_BUFFER_PRE_PADDING]),ptr_frames[0]->as_message(),message_size);
+				*/
 				
 				//g_message ("voy a enviar");
 				int result = libwebsocket_write(wsi,
@@ -836,7 +968,9 @@ void send_messages_queu::run(struct libwebsocket *wsi,enum STATUSES wsk_status){
 
 					//tempo = ptr_frames[0]->get_index();
 					lwsl_debug("enviada la trama: %s",ptr_frames[0]->print());
+					/*	Bloque comentariado temporalmente
 					delete_frame(ptr_frames[0]->get_index());
+					*/
 					wsk_comm_interface->set_last_access_time();
 				}
 				else if (result == -1){
@@ -856,6 +990,7 @@ bool send_messages_queu::delete_frame(unsigned int m_frame_index){
 	//g_message("count = %d",count);
 	for (int i = 0;i<count;i++){
 
+		/*	Bloque comentariado temporalmente
 		if (ptr_frames[i]->get_index() == m_frame_index){
 
 			//g_message("ptr_frames[i]->get_index() = %d",ptr_frames[i]->get_index());
@@ -893,9 +1028,14 @@ bool send_messages_queu::delete_frame(unsigned int m_frame_index){
 			}
 
 			return true;
-		}
+		}*/
 	}
 	return false;
+}
+
+unsigned short int send_messages_queu::get_count(){
+	
+	return count;
 }
 
 #endif
@@ -912,8 +1052,6 @@ comm_interface::comm_interface(){
 	context = NULL;
 	wsk_time_out = CONFd("wsk_time_out");
 	wsk_keep_alive = CONFd("wsk_keep_alive");
-	
-	wsk_status = WSK_DISCONNECTED;
 	
 	wsi = NULL;
 	
@@ -937,8 +1075,8 @@ comm_interface::comm_interface(){
 	protocols[1].per_session_data_size = 0;
 	protocols[1].rx_buffer_size = 0;
 	
-	init = TRUE;
 	wsk_status = WSK_DISCONNECTED;
+	init = TRUE;
 	g_timeout_add( 1000, (GSourceFunc) call_libwebsocket_service,NULL);
 	
 }
@@ -981,6 +1119,8 @@ struct libwebsocket* comm_interface::get_wsi(){
 
 void comm_interface::wsk_create_context(void){
 	
+	//g_message("entré en creake_context");
+	
 	struct lws_context_creation_info* context_creation_info;
 	
 	//context_creation_info = g_try_new0(struct_type, n_structs);	//Esto es lo que debo usar en la versión final 
@@ -1006,7 +1146,7 @@ void comm_interface::wsk_create_context(void){
 
 	context = libwebsocket_create_context(context_creation_info);
 	if (context_creation_info != NULL) g_free(context_creation_info);
-	
+	//g_message("salí de creake_context");
 }
 
 void comm_interface::wsk_client_connect (void){
@@ -1017,18 +1157,23 @@ void comm_interface::wsk_client_connect (void){
 	// instruction should be inserted inside a loop that change that parameter until the connection is made. This mecanism should
 	// have a timeout.
 	
-	//wsi_dumb = libwebsocket_client_connect(context, wsk_server_address, wsk_server_port, CONFd("wsk_use_ssl"), CONF("wsk_path_on_server"),
-	//			CONF("wsk_server_hostname"), CONF("wsk_origin_name"), protocols[CONFd("wsk_protocol")].name, CONFd("ietf_version"));
-				
-	/*wsi = libwebsocket_client_connect(context, CONF("wsk_server_address"), CONFd("wsk_server_port"),
-				 CONFd("wsk_use_ssl"), CONF("wsk_path_on_server"),
-				 "datalnet.azurewebsites.net","http://localhost:65487", protocols[CONFd("wsk_protocol")].name, CONFd("ietf_version"));*/
-				 
+	// ?macAddressFrom=
+	
+	char* original_url = CONF("wsk_path_on_server");
+	char* wsk_url = (char*)calloc(1,strlen(original_url)+16+18);
+	strcpy(wsk_url,original_url);
+	
+	strcat(wsk_url,"?macAddressFrom=");
+	strcat(wsk_url,macAddressFrom);
+	
+	//g_message(wsk_url);
+			
 	wsi = libwebsocket_client_connect(context, CONF("wsk_server_address"), CONFd("wsk_server_port"),
-				 CONFd("wsk_use_ssl"), CONF("wsk_path_on_server"),
-				 CONF("wsk_server_hostname"),CONF("wsk_origin_name"), protocols[CONFd("wsk_protocol")].name, CONFd("ietf_version"));
+			CONFd("wsk_use_ssl"),wsk_url,CONF("wsk_server_hostname"),CONF("wsk_origin_name"),
+			protocols[CONFd("wsk_protocol")].name, CONFd("ietf_version"));
 	
 	//g_message("initial wsi = %d with size = %d", (unsigned int)wsi,sizeof(*wsi));
+	//g_message("retorno de libwebsocket_client_connect");
 		
 }
 
@@ -1059,42 +1204,6 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 			set_last_access_time();
 			
 		}
-	
-		char* coma;
-		parametros* par;
-		data* da;
-		
-		coma = (char*)g_malloc0(5);
-		strcpy(coma,"INIT");
-		
-		par = NULL;
-		da = NULL;
-		
-		/*parametros* par = g_new0(struct params, 1);
-		par->cantidad = 2;
-		par->values = (char**)g_malloc0(par->cantidad);
-		
-		char* para = (char*)g_malloc0(3);
-		strcpy(para,"12");
-		
-		par->values[0] = para;
-		
-		char* para1 = (char*)g_malloc0(18);
-		strcpy(para1,"12345678901234567");
-		
-		par->values[1] = para1;
-		
-		data* da = g_new0(struct data, 1);
-		da->size = 10;
-		
-		char* d = (char*)g_malloc0(11);
-		g_memmove(d,"0123456789",10);
-		
-		da->binaries = d;*/
-		
-		sender_queu->add_frame(coma, par, da);
-		g_message("adicionada la trama init: %s",coma);
-			
 	}
 	
 	if (comando != NULL){
@@ -1108,7 +1217,18 @@ int comm_interface::wsk_send_command(char* comando, struct params* parameters_in
 
 void comm_interface::wsk_set_status(enum STATUSES status){
 	
+	char* old_char = (char*)calloc(1,30);
+	char* wsk_status_char = (char*)calloc(1,30);
+	
+	parse_status(wsk_status, old_char);
 	wsk_status = status;
+	
+	parse_status(wsk_status, wsk_status_char);
+	
+	g_message("wsk change status from %s to %s", old_char, wsk_status_char);
+	
+	g_free(old_char);
+	g_free(wsk_status_char);
 	
 }
 
@@ -1136,6 +1256,82 @@ void comm_interface::clear_init(){
 	init = FALSE;
 }
 
+void comm_interface::set_init(){
+	
+	init = TRUE;
+}
+
 
 #endif
 /***************************** end class wsk_comm_interface methods ****************/
+
+/***************************** class files_array methods ***************************/
+files_array::files_array(){
+	
+	cantidad = 0;
+	items = NULL;
+	
+}
+
+files_array::~files_array(){
+	
+	
+	
+}
+
+void files_array::add_file(int fd){
+	
+	cantidad += 1;
+	if (cantidad > 1) {
+		GIOChannel** items_new = g_try_renew(GIOChannel*, items, cantidad);
+		g_free(items);
+		items = items_new;
+	}
+	else items = g_new0(GIOChannel*,cantidad);
+	
+	items[cantidad-1] = g_io_channel_unix_new (fd);
+	
+}
+
+GIOChannel* files_array::get_item(int fd){
+	
+	for (unsigned int i = 0;i<cantidad;i++){
+		
+		if ( g_io_channel_unix_get_fd(items[i]) == fd ) return items[i];
+	}
+	return NULL;
+}
+
+void files_array::remove_chann(GIOChannel *channel) {
+	
+	if (cantidad == 1) {
+		
+		g_io_channel_close( items[0] );
+		g_io_channel_unref( items[0] );
+		cantidad = 0;
+		g_free(items[0]);
+		g_free(items);
+		items = NULL;
+	}
+	else {
+		for (unsigned int i = 0; i<cantidad;i++) {
+			
+			if (channel == items[i]) {
+				
+				g_io_channel_close( items[i] );
+				g_io_channel_unref( items[i] );
+				
+				for (unsigned int a = i;a<cantidad - 1;a++){
+				
+					items[a] = items[a+1];
+				}
+				break;
+			}
+		}
+		cantidad = cantidad - 1;
+		GIOChannel** items_new = g_try_renew(GIOChannel*, items, cantidad);
+		g_free(items);
+		items = items_new;
+	}
+}
+/***************************** end class files_array methods ***********************/

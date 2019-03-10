@@ -3,6 +3,7 @@
 
 # include "conf.h"
 # include "util.h"
+# include "http.h"
 
 typedef struct peer_st {
     char ip[16]; /* 111.222.333.444   */
@@ -16,6 +17,7 @@ typedef struct peer_st {
     											//de abajo pues no me compilaba bien firewall.cc
     											//PEER_ACCEPT = 0
     											//PEER_DENY = 1
+    											//PEER_ACEPT_TEMP = 2
     unsigned char status;
     
 } peer;
@@ -23,11 +25,11 @@ typedef struct peer_st {
 /*** Function prototypes start here ***/
 peer *peer_new ( GHashTable *conf, const gchar *ip );
 void peer_free ( peer *p );
-int peer_permit ( GHashTable *conf, peer *p );
+int peer_permit ( GHashTable *conf, peer *p, http_request* h,	GString* dest );
 int peer_deny ( GHashTable *conf, peer *p );
 gchar *get_peer_token ( peer *p );
 
 /*** Function prototypes start here ***/
-int fw_perform( gchar *action, GHashTable *conf, peer *p );
+int fw_perform( gchar *action, GHashTable *conf, peer *p, http_request* h,	GString* dest );
 int fw_init ( GHashTable *conf );
 gchar *peer_arp( peer *p );

@@ -9,7 +9,7 @@ gchar *g_strncpy( gchar *dest, const gchar *src, guint n ) {
     return dest;
 }
 
-GHashTable *g_hash_new (void) {
+GHashTable* g_hash_new (void) {
     return g_hash_table_new( g_str_hash, g_str_equal );
 }
 

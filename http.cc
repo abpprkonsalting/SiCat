@@ -11,10 +11,13 @@
 # include <stdlib.h>
 # include <ctype.h>
 # include "util.h"
+//# include "splashd.h"
 # include "http.h"
 # include "mime.h"
 
 /*Modifications added by abp*/
+
+extern class h_requests* requests;
 
 GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
  
@@ -30,31 +33,28 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     addr.sin_family = AF_INET;
     addr.sin_port   = htons(port);
     r = inet_aton( ip, &addr.sin_addr );
-    if (r == 0)
-	g_error("inet_aton failed on %s: %m", ip);	
+    if (r == 0){ g_error("inet_aton failed on %s: %m", ip);	}
 
     fd = socket( PF_INET, SOCK_STREAM, 0 );
-    if (r == -1)
-	g_error("socket failed: %m");	
+    if (r == -1) {g_error("socket failed: %m"); }
     
     r = bind( fd, (struct sockaddr *)&addr, sizeof(addr) );
-    if (r == -1)
-	g_error("bind failed on %s: %m", ip);	
+    if (r == -1) { g_error("bind failed on %s: %m", ip);	}
 
     r = setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n) );
-    if (r == -1)
-	g_error("setsockopt failed on %s: %m", ip);	
+    if (r == -1) { g_error("setsockopt failed on %s: %m", ip); }
 
     n = fcntl( fd, F_GETFL, 0 );
-    if (n == -1)
-	g_error("fcntl F_GETFL on %s: %m", ip );
+    if (n == -1) {g_error("fcntl F_GETFL on %s: %m", ip ); }
 
-    r = fcntl( fd, F_SETFL, n | O_NDELAY );
+    //r = fcntl( fd, F_SETFL, n | O_NDELAY );
+    
+    r = fcntl( fd, F_SETFL, n | O_NONBLOCK);
 
 	/* abp: aparently there is an error here, we should check r, not n
     if (n == -1)*/
 
-	if (r == -1)	g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip );
+	if (r == -1) { g_error("fcntl F_SETFL O_NDELAY on %s: %m", ip ); }
 
     /* 
      * n = fcntl( fd, F_GETFL, 0 );
@@ -62,8 +62,7 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
      */
 
     r = listen( fd, queue );
-    if (r == -1)
-	g_error("listen failed on %s: %m", ip);	
+    if (r == -1){ g_error("listen failed on %s: %m", ip); }
 
     return g_io_channel_unix_new( fd );
 }
@@ -85,18 +84,19 @@ http_request* http_request_new ( GIOChannel* sock ) {
     h->buffer = g_string_new("");
 
     r = getsockname( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
-    if (r == -1) g_error( "getsockname failed: %m" );
+    if (r == -1) { g_error( "getsockname failed: %m" );}
     r2 = inet_ntop( AF_INET, &addr.sin_addr, h->sock_ip, INET_ADDRSTRLEN );
     g_assert( r2 != NULL );
 
     r = getpeername( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
-    if (r == -1)
-	g_error( "getpeername failed: %m" );
+    if (r == -1){ g_error( "getpeername failed: %m" );}
     r2 = inet_ntop( AF_INET, &addr.sin_addr, h->peer_ip, INET_ADDRSTRLEN );
     g_assert( r2 != NULL );
+    
+    h->remote_port = addr.sin_port;
+    h->is_used = FALSE;
 
     g_io_channel_ref( sock );
-    h->authorized = FALSE;
     return h;
 }
 
@@ -145,8 +145,8 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 /*This function extracts the http header from the request and fills the GHashTable structure
 "h->header" of the http_request structure, besides fills the string members h->method and h->uri*/
 
-    GHashTable *head = g_hash_new();
-    gchar **lines, **items, *key, *val, *p;
+    GHashTable* head = g_hash_new();
+    gchar** lines,** items,* key,* val,* p;
     guint i;
 
     lines = g_strsplit( req, "\r\n", 0 );
@@ -159,22 +159,23 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
     g_strfreev( items );
 
     for (i = 1; lines[i] != NULL && lines[i][0] != '\0'; i++ ) {
-	key = lines[i];
-	val = strchr(key, ':');
-	if (val != NULL) {
-	    /* Separate the key from the value */
-	    *val = '\0';
+    	
+		key = lines[i];
+		val = strchr(key, ':');
+		if (val != NULL) {
+			/* Separate the key from the value */
+			*val = '\0';
 
-	    /* Normalize key -- lowercase every after 1st char */
-	    for (p = key + 1; *p != '\0'; p++)
-		*p = tolower(*p);
+			/* Normalize key -- lowercase every after 1st char */
+			for (p = key + 1; *p != '\0'; p++)
+			*p = tolower(*p);
 
-	    /* Strip ": " plus leading and trailing space from val */
-	    g_strchomp( val += 2 ); // ": "
-	    
-	    g_debug("Header in: %s=%s", key, val );
-	    g_hash_set( head, key, val );
-	}
+			/* Strip ": " plus leading and trailing space from val */
+			g_strchomp( val += 2 ); // ": "
+			
+			g_debug("Header in: %s=%s", key, val );
+			g_hash_set( head, key, val );
+		}
     }
 
     g_strfreev( lines );
@@ -214,75 +215,6 @@ GHashTable* http_parse_query (http_request* h, gchar* post) {
 }
 
 /*************  *******/
-guint http_request_read (http_request *h) {
-
-	gchar *buf = g_new( gchar, BUFSIZ + 1 );
-	GIOError r;
-	guint n, t;
-	gchar *c_len_hdr;
-	guint c_len;
-	guint tot_req_size;
-	gchar *hdr_end = NULL;
-	guint cont = 0;
-	//GIOFlags flags;
-
-	//g_message("entering http_request_read");
-
-	for (t = 0, n = BUFSIZ; h->buffer->len < MAX_REQUEST_SIZE &&
-		(hdr_end = strstr(h->buffer->str, "\r\n\r\n")) == NULL; t += n ) {
-		//g_message("entering read loop");
-
-		//flags = g_io_channel_get_flags(h->sock);
-		//g_message("%d",(h->sock.channel_flags | G_IO_FLAG_IS_READABLE));
-
-		r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
-		//g_message("read loop: read %d bytes of %d (%d)", n, BUFSIZ, r);
-
-		if (r != G_IO_ERROR_NONE) {
-			g_warning( "read_http_request failure: %m" );
-			g_free(buf);
-			return 0;
-		}
-		//if (n != 0) g_message("%s", buf);
-		if (n == 0){
-			cont++;
-			if (cont == 5) {
-				//g_message("bateo");
-				return 0;
-			}
-		}
-		buf[n] = '\0';
-		g_string_append(h->buffer, buf);
-	}
-	//g_message(h->buffer->str);	
-
-	http_parse_header( h, h->buffer->str );
-
-	c_len_hdr = HEADER("Content-length");
-	if (c_len_hdr == NULL) {
-		c_len = 0;
-	} else {
-		c_len = atoi( c_len_hdr );
-	}
-
-/*The following block of code requires revision */
-
-	tot_req_size = hdr_end - h->buffer->str + 4 + c_len;
-	for (; t < tot_req_size; t += n ) {
-		//g_message("entering read loop");
-		r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
-		//g_message("read loop: read %d bytes of %d (%d)", n, BUFSIZ, r);
-		if (r != G_IO_ERROR_NONE) {
-		g_warning( "read_http_request failure: %m" );
-		g_free(buf);
-		return 0;
-		}
-		buf[n] = '\0';
-		g_string_append(h->buffer, buf);
-	}
-	g_free(buf);
-	return t;
-}
 
 gboolean http_request_ok (http_request *h) {
 	
@@ -351,10 +283,19 @@ GIOError http_send_header ( http_request *h, int status, const gchar *msg ) {
     g_string_sprintfa( hdr, "HTTP/1.1 %d %s\r\n", status, msg );
     g_hash_table_foreach( h->response, (GHFunc) http_compose_header, hdr );
     g_string_append( hdr, "\r\n" );
-    g_debug("Header out: %s", hdr->str);
+    //g_debug("Header out: %s", hdr->str);
+    
+    //requests->get_ride_of_sombies();
+    
     r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
-    g_message("sent header: %s",hdr->str);
+    //g_message("sent header: %s",hdr->str);
     g_string_free( hdr, 1 );
+    
+    g_io_channel_shutdown(h->sock,FALSE,NULL);
+	g_io_channel_unref( h->sock );
+	//http_request_free( h );
+	requests->remove(h);
+    
     return r;
 }
 
@@ -362,6 +303,7 @@ void http_send_redirect( http_request *h, gchar *dest ) {
 	
     http_add_header ( h, "Location", dest );
     http_send_header( h, 302, "Moved" );
+    //g_message("voy a retornar");
 }
 
 gchar *http_fix_path (const gchar *uri, const gchar *docroot) {
@@ -459,3 +401,224 @@ int http_serve_template ( http_request *h, gchar *file, GHashTable *data ) {
 
     return 1;
 }
+
+guint http_request_read (http_request *h) {
+
+	gchar *buf = g_new( gchar, BUFSIZ + 1 );
+	GIOStatus r;
+	GError* gerror = NULL;
+	guint cond;
+	guint n, t;
+	gchar *c_len_hdr;
+	guint c_len;
+	guint tot_req_size;
+	gchar* hdr_end = NULL;
+	//guint cont = 0;
+	//GIOFlags flags;
+
+	//g_message("entering http_request_read");
+	
+
+	for (t = 0, n = BUFSIZ; h->buffer->len < MAX_REQUEST_SIZE &&
+		(hdr_end = strstr(h->buffer->str, "\r\n\r\n")) == NULL; t += n ) {
+		//g_message("entering read loop");
+
+		//flags = g_io_channel_get_flags(h->sock);
+		//g_message("%d",(h->sock.channel_flags | G_IO_FLAG_IS_READABLE));
+
+		//r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
+		
+		cond = g_io_channel_get_buffer_condition(h->sock);
+		if ((cond == 0) || (cond == 2)){
+			r = g_io_channel_read_chars(h->sock, buf, BUFSIZ, &n,&gerror);
+			
+			if (gerror != NULL) {
+				//g_message("g_io_channel_read_chars return error: %s",gerror->message);
+				g_free(buf);
+				return 0;
+			}
+			
+			//g_message("read loop: read %d bytes of %d (%d)", n, BUFSIZ, r);
+
+			if (r != G_IO_STATUS_NORMAL) {
+				
+				//g_message("g_io_channel_read_chars() returned with GIOStatus = %d",r);
+				//g_message("buff antes del append: %s", buf);
+				
+				/*if ((r == G_IO_STATUS_ERROR) || (r == G_IO_STATUS_AGAIN)){*/
+				
+					//g_message( "read_http_request failure" );
+					g_free(buf);
+					return 0;
+				/*}*/
+				
+			}
+			else {
+				//g_message("buff antes del append: %s", buf);
+				buf[n] = '\0';
+				//g_message("contenido de h->buffer antes del append: %s",h->buffer->str);
+				g_string_append(h->buffer, buf);
+			}
+			/*if (n == 0){
+				cont++;
+				if (cont == 5) {
+					g_message( "read_http_request failure, bateo");
+					return 0;
+				}
+			}*/
+			
+		}
+		else {
+			g_message("cond = %d",cond); 
+			break;
+		}
+	}
+	//g_message("buf dentro del string: %s",h->buffer->str);	
+
+	http_parse_header( h, h->buffer->str );
+
+	c_len_hdr = HEADER("Content-length");
+	if (c_len_hdr == NULL) {
+		c_len = 0;
+	} else {
+		c_len = atoi( c_len_hdr );
+	}
+
+/*The following block of code requires revision */
+
+	tot_req_size = hdr_end - h->buffer->str + 4 + c_len;
+	for (; t < tot_req_size; t += n ) {
+		//g_message("entering read loop again");
+		//r = g_io_channel_read( h->sock, buf, BUFSIZ, &n );
+		r = g_io_channel_read_chars(h->sock, buf, BUFSIZ, &n,&gerror);
+		//g_message("read loop again: read %d bytes of %d (%d)", n, BUFSIZ, r);
+		//if (gerror != NULL) g_message(gerror->message);
+		/*if (r != G_IO_ERROR_NONE) {
+		//g_warning( "read_http_request failure: %m" );
+		g_message( "read_http_request failure11");
+		g_free(buf);
+		return 0;
+		}*/
+		buf[n] = '\0';
+		g_string_append(h->buffer, buf);
+		//g_message(buf);
+	}
+	g_free(buf);
+	//g_message("leaving http_request_read with return = %d ", t);
+	return t;
+}
+
+
+/***************************** class h_requests methods ***************************/
+h_requests::h_requests(){
+	
+	cantidad = 0;
+	items = NULL;
+	
+}
+
+h_requests::~h_requests(){
+	
+	
+	
+}
+
+http_request* h_requests::add(GIOChannel *sock){
+	
+	cantidad += 1;
+	if (cantidad > 1) {     
+		
+		//http_request** items_new = g_try_renew(http_request*, items, cantidad);
+		http_request** items_new = g_try_new0(http_request*, cantidad);
+		
+		memcpy (items_new, items, sizeof(http_request*)*(cantidad-1));
+		
+		g_free(items);
+		items = items_new;
+	}
+	else items = g_try_new0(http_request*,cantidad);
+	
+	items[cantidad-1] = http_request_new ( sock );
+	
+	return items[cantidad-1];
+	
+}
+
+http_request* h_requests::get(unsigned int index){
+	
+	return items[index];
+}
+
+ int h_requests::get_index(http_request* h){
+	
+	for (int i = 0;i<cantidad;i++){
+		
+		if (items[(unsigned int)i] == h) return i; 
+	}
+	return -1;
+}
+
+void h_requests::remove(http_request* h) {
+	
+	//g_message("entering remove with cantidad = %d",cantidad);
+	if (cantidad == 1) {
+		
+		http_request_free (items[0]);
+		cantidad = 0;
+		//g_free(items[0]);
+		g_free(items);
+		items = NULL;
+	}
+	else {
+		for (unsigned int i = 0; i<cantidad;i++) {
+			
+			//g_message("items[%d] = %d",i,items[i]);
+			if (h == items[i]) {
+				
+				//g_message("found h(%d) as items[%d]",h,items[i]);
+				http_request_free (items[i]);
+				
+				for (unsigned int a = i;a<cantidad - 1;a++){
+				
+					items[a] = items[a+1];
+				}
+				//g_message("inside items[%d] = %d",i,items[i]);
+				break;
+			}
+		}
+		cantidad = cantidad - 1;
+		//http_request** items_new = g_try_renew(http_request*, items, cantidad);
+		http_request** items_new = g_try_new0(http_request*, cantidad);
+		memcpy (items_new, items, sizeof(http_request*)*(cantidad));
+		
+		g_free(items);
+		items = items_new;
+	}
+	//g_message("leaving remove");
+}
+
+void h_requests::get_ride_of_sombies(){
+	
+	//g_message("getting rid of sombies with cantidad = %d",cantidad);
+	
+	for (unsigned int i = 0; i<cantidad;i++){
+		
+		//g_message("checking request %d",g_io_channel_unix_get_fd (items[i]->sock));
+		if (!(items[i]->is_used)) {
+			
+			//g_message("getting rid of sombie %d",g_io_channel_unix_get_fd (items[i]->sock));
+			
+			g_io_channel_set_close_on_unref(items[i]->sock,TRUE);
+
+			//handle_read(items[i]->sock,G_IO_IN, items[i] );
+			
+			g_io_channel_shutdown(items[i]->sock,FALSE,NULL);
+			g_io_channel_unref( items[i]->sock );
+			remove(items[i]);
+			i = i -1;
+		}
+	}
+	g_message("salí de los sombies");
+}
+/***************************** end class h_requests methods ***********************/
+

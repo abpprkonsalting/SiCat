@@ -36,15 +36,14 @@ ssize_t http_sendfile ( http_request *h, int in_fd ) {
     return r;
 }
 
-gchar *peer_arp( peer *p ) {
+gchar* peer_arp( peer *p ) {
     gchar ip[16], hw[18];
     FILE *arp;
 
     g_assert( p != NULL );
 
     arp = fopen( "/proc/net/arp", "r" );
-    if ( arp == NULL )
-	g_error( "Can't open /proc/net/arp: %m" );
+    if ( arp == NULL ){	g_error( "Can't open /proc/net/arp: %m" );}
    
     fscanf(arp, "%*s %*s %*s %*s %*s %*s %*s %*s %*s"); // Skip first line 
     while (fscanf( arp, "%15s %*s %*s %17s %*s %*s\n", ip, hw ) != EOF)  {
@@ -58,7 +57,7 @@ gchar *peer_arp( peer *p ) {
     return ( p->hw[0] != '\0' ? p->hw : NULL );
 }
 
-gchar *get_mac_address (const gchar *dev) {
+gchar* get_mac_address (const gchar *dev) {
     int r, s;
     struct ifreq ifr;
     gchar *dest = g_new0( gchar, 13 );
@@ -68,16 +67,16 @@ gchar *get_mac_address (const gchar *dev) {
 
     s = socket( PF_INET, SOCK_DGRAM, 0 );
     if (s == -1) {
-	g_warning("get_mac_address socket: %m");
-	g_free(dest);
-	return NULL;
+		g_warning("get_mac_address socket: %m");
+		g_free(dest);
+		return NULL;
     }
 
     r = ioctl( s, SIOCGIFHWADDR, &ifr );
     if (r == -1) {
-	g_warning("SIOCGIFHWADDR: %m");
-	g_free(dest);
-	close(s);
+		g_warning("SIOCGIFHWADDR: %m");
+		g_free(dest);
+		close(s);
 	return NULL;
     }
 
@@ -94,7 +93,7 @@ gchar *get_mac_address (const gchar *dev) {
     return dest;
 }
 
-gchar *get_network_address (const gchar *dev) {
+gchar* get_network_address (const gchar *dev) {
     int r, s;
     struct ifreq ifaddr, ifnetmask;
     gchar *dest = g_new0( gchar, 33 );
@@ -142,14 +141,13 @@ gchar *get_network_address (const gchar *dev) {
     return dest;
 }
 
-gchar *detect_network_device ( const gchar *exclude ) {
+gchar* detect_network_device ( const gchar *exclude ) {
     gchar dev[7], dest[9];
     gchar *out = NULL;
     FILE *route;
 
     route = fopen( "/proc/net/route", "r" );
-    if ( route == NULL )
-	g_error( "Can't open /proc/net/route: %m" );
+    if ( route == NULL ){g_error( "Can't open /proc/net/route: %m" );}
     
     // Skip first line 
     fscanf(route, "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s"); 
