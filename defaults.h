@@ -8,6 +8,7 @@ struct conf_t default_conf[] = {
     // Gateway server networking values.
     { (gchar*)"GatewayAddr",	(gchar*)"0.0.0.0" },
     { (gchar*)"GatewayPort",	(gchar*)"5280" },
+    { (gchar*)"SSL_GatewayPort",	(gchar*)"5281" },
     { (gchar*)"ListenQueue",	(gchar*)"20" },
 
     /*This is now all auto-detected in set_network_defaults()
@@ -60,6 +61,7 @@ struct conf_t default_conf[] = {
 	{ (gchar*)"ietf_version",	(gchar*)"-1"},
 	{ (gchar*)"wsk_log_level", (gchar*)"1"},
 	{ (gchar*)"usewsk", (gchar*)"1"},
+	{ (gchar*)"authhttp", (gchar*)"1"},
 
     // Trailing NULL
     { NULL, NULL }

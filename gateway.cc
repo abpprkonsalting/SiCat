@@ -29,7 +29,7 @@ gchar* local_host( http_request *h ) {
 	
 	gchar* ret = NULL;
 	
-	ret = g_strdup_printf( "%s:%s", h->sock_ip, CONF("GatewayPort") );
+	ret = g_strdup_printf( "%s:%s", CONF("GatewayAddr"), CONF("GatewayPort") );
 	
 	return ret;
 }
@@ -168,8 +168,15 @@ void compare_token( gchar *hw, peer *p, struct mi_struct* fr){
 			fr->encontrado = TRUE;			
 			if (strcmp(fr->trama->parameters->items[0]->valor,"true") == 0){
 				
-				g_debug("compare_token: peer %s autenticado, permitiendolo por todo el timeout...",hw);
-				peer_permit(nocat_conf,p,NULL);
+				if (CONFd("authhttp") == 0) {
+					
+					g_debug("compare_token: peer %s autenticado, permitiendolo por todo el timeout...",hw);
+					peer_permit(nocat_conf,p,NULL);
+				}
+				else {
+					
+					g_debug("compare_token: se recibe la trama de autentificacion por el wsk para el peer %s, pero el sistema est'a configurado para auth por http...",hw);
+				}
 					
 			}
 		}

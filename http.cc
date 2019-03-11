@@ -13,13 +13,14 @@
 # include <libwebsockets.h>
 # include <netinet/in.h>
 # include "util.h"
-//# include "splashd.h"
 # include "http.h"
 # include "mime.h"
 
 /*Modifications added by abp*/
 
 extern struct hs_array_t* hs_array;
+
+extern GHashTable* ssl_connected_tab;
 
 GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
  
@@ -44,6 +45,13 @@ GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
     if (fd == -1) {
     	//g_error("http_bind_socket: socket failed: %m");
     	g_message("http_bind_socket: socket failed: %m");
+    	g_assert(0);
+    }
+    
+    r=1;	// for setsockopt() SO_REUSEADDR, below
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &r,sizeof(int)) == -1) 
+	{
+        g_message("http_bind_socket: setsockopt failed: %m");
     	g_assert(0);
     }
     
@@ -156,7 +164,7 @@ void peer_arp_h( http_request *h ) {
     {
 		if ( strncmp( h->peer_ip, ip, sizeof(h->peer_ip) ) == 0 ) 
 			{
-				g_strncpy( h->hw, hw, sizeof(h->hw) );
+				g_strncpy( h->hw, hw, sizeof(hw) );
 				break;
 			}
     }
@@ -175,7 +183,17 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
     h->sock   = sock;
     h->buffer = g_string_new("");
     h->is_used = FALSE;
-	h->source_id = 0;
+	//h->source_id = 0;
+	h->is_ssl = FALSE;
+	h->outside_fd = fd;
+	h->ssl_server_fd = 0;
+	h->ssl_buff = g_new0(struct ssl_buffer, 1);
+	h->ssl_buff->buffer = NULL;
+	h->ssl_buff->tamanno = 0;
+	h->ssl_capture_status = 0;	// Se acaba de crear la conexi'on, no se ha empezado el proceso de sniffeado de certificado.
+	h->ssl_server_name_extension = NULL;
+	h->server_certificate = NULL;
+	
     r = getsockname( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
     if (r == -1) { 
     	g_message( "http_request_new: getsockname failed: %m" );
@@ -192,7 +210,32 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
     }
     r2 = inet_ntop( AF_INET, &addr.sin_addr, h->peer_ip, INET_ADDRSTRLEN );
     
+    h->peer_port = ntohs(addr.sin_port);
+    
 	peer_arp_h(h);
+	
+	gchar* key = g_new0(char,40);
+		
+	strcat(key,h->hw);
+	strcat(key,"//");
+	strcat(key,h->peer_ip);
+		
+	gchar* puerto_origen = g_new0(gchar,4);
+	sprintf (puerto_origen, "%d",h->peer_port);
+		
+	strcat(key,":");		
+	strcat(key,puerto_origen);
+	
+	g_free(puerto_origen);
+	
+	h->ssl_remote_ip = (gchar*) g_hash_table_lookup(ssl_connected_tab, key);
+	
+	//g_debug("http_request_new: real remote ssl server = %s",h->ssl_remote_ip);
+	
+	g_free(key);
+	
+	h->real_server_certificate = NULL;
+	h->ssl_external_sock = NULL;
 	
     return h;
 }
@@ -240,6 +283,7 @@ void http_request_free ( http_request *h ) {
     g_hash_free( h->response );
     g_string_free( h->buffer, TRUE );
     g_free( h );
+    h = NULL;
     
 }
 
@@ -453,10 +497,10 @@ static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
     return r;
 }*/
 
-GIOError http_send_header (http_request *h, int status, const gchar *msg, peer *p ) {
+void http_send_header (http_request *h, int status, const gchar *msg, peer *p ) {
 	
     GString *hdr = g_string_new("");
-    GIOError r;
+    //GIOError r;
     int n;
 
     g_string_sprintfa( hdr, "HTTP/1.1 %d %s\r\n", status, msg );
@@ -473,7 +517,8 @@ GIOError http_send_header (http_request *h, int status, const gchar *msg, peer *
     
     g_string_free( hdr, 1 );
     
-    return r;
+    //return r;
+    return;
 }
 
 void http_send_redirect( http_request *h, gchar *dest, peer *p ) {
@@ -599,11 +644,11 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     return r;
 }*/
 
-GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 ) {
+void http_serve_template ( http_request *h, gchar *file, GHashTable *data1 ) {
 	
     gchar *form;
     guint n;
-    GIOError r;
+    //GIOError r;
 
     form = parse_template( file, data1 );
     n = strlen(form);
@@ -618,12 +663,12 @@ GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 )
 
     g_free( form );
 
-    if ( r != G_IO_ERROR_NONE ) {
+    /*if ( r != G_IO_ERROR_NONE ) {
     	
     	g_message( "http_serve_template: Serving template to %s failed: %m", h->peer_ip );
-    }
+    }*/
 
-    return r;
+    return;
 }
 
 guint http_request_read (http_request *h) {
@@ -640,6 +685,7 @@ guint http_request_read (http_request *h) {
 	//g_debug("http_request_read: entering..");
 
 	cond = g_io_channel_get_buffer_condition(h->sock);
+	g_debug("http_request_read: g_io_channel_get_buffer_condition on request from %s return with buffer condition = %d", h->peer_ip, cond);
 	
 	if ((cond == 0) || (cond == 2)){
 		
@@ -648,6 +694,13 @@ guint http_request_read (http_request *h) {
 		//g_debug("http_request_read: channel_size = %d",channel_size);
 		
 		buf = g_new0( gchar, channel_size + 2 );
+		
+		/*
+		buf2 = g_new0( gchar, channel_size + 2 );
+		n = recv (g_io_channel_unix_get_fd (h->sock),buf2, channel_size,MSG_PEEK);
+		g_debug("http_request_read: caracteres peekeados con recv: %d", n);
+		g_free(buf2);
+		*/
 		
 		r = g_io_channel_read_chars(h->sock, buf, channel_size, &n,&gerror);
 		
@@ -665,7 +718,7 @@ guint http_request_read (http_request *h) {
 			return 2;
 
 		}*/
-		
+		//g_debug("http_request_read: g_io_channel_read_chars return code: %d", r);
 		//g_debug("http_request_read: caracteres leidos: %d", n);
 		
 		if (n == 0){
@@ -740,7 +793,33 @@ guint http_request_read (http_request *h) {
 	}
 	else {
 		
-		g_debug("http_request_read: g_io_channel_get_buffer_condition on request from %s return with buffer condition = %d", h->peer_ip, cond);
+		g_debug("http_request_read: error: g_io_channel_get_buffer_condition on request from %s return with buffer condition = %d", h->peer_ip, cond);
 		return 2;
 	}
+}
+
+void llenar_buffer(http_request *h,gchar* buf,guint n){
+	
+	gchar* tempo;
+	
+	//g_debug("llenar_buffer: entrando para llenar el buffer: %u", h->ssl_buff);
+	//g_debug("llenar_buffer: tamanno = %u", h->ssl_buff->tamanno);
+	//g_debug("llenar_buffer: %s", h->ssl_buff->buffer);
+	
+	if (h->ssl_buff->buffer == NULL){ //El buffer est'a vacio
+		
+		h->ssl_buff->buffer = g_new0(gchar,n);
+		memcpy(h->ssl_buff->buffer,buf,n);
+		h->ssl_buff->tamanno = n;
+		
+	} else {
+		
+		tempo = g_new0(gchar,h->ssl_buff->tamanno + n);
+		memcpy(tempo,h->ssl_buff->buffer,h->ssl_buff->tamanno);
+		memcpy(tempo + (h->ssl_buff->tamanno), buf,n);
+		h->ssl_buff->tamanno = h->ssl_buff->tamanno + n;
+		g_free(h->ssl_buff->buffer);
+		h->ssl_buff->buffer = tempo;
+	}
+	return;
 }

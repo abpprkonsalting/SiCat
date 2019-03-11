@@ -11,17 +11,21 @@
 # include <fcntl.h>
 # include <unistd.h>
 # include <syslog.h>
-#include <stdlib.h>
-#include <getopt.h>
-#include <stdarg.h>
+# include <stdlib.h>
+# include <getopt.h>
+# include <stdarg.h>
 
 # include "gateway.h"
 
-#include <libnetfilter_queue/libnetfilter_queue.h>
+# include <libnetfilter_queue/libnetfilter_queue.h>
 //#include <libnetfilter_queue/linux_nfnetlink_queue.h>
-#include <linux/netfilter.h>
+# include <linux/netfilter.h>
+
+//# include "tls/tls.h"
 
 extern GHashTable* peer_tab;
+GHashTable* ssl_connected_tab;
+GHashTable* ssl_certificates_tab;
 static int exit_signal = 0;
 static FILE* pid_file = NULL;
 gchar* macAddressFrom; 
@@ -57,6 +61,9 @@ struct nfq_q_handle* http_q_queue_handle;
 
 struct nfq_handle* http_input_queue_handle;
 struct nfq_q_handle* http_input_q_queue_handle;
+
+struct nfq_handle* ssl_queue_handle;
+struct nfq_q_handle* ssl_q_queue_handle;
 
 struct nfq_iphdr
 {
@@ -133,4 +140,6 @@ uint16_t check;
 };
 
 gboolean show_socket_pairs(gchar* function_name, http_request *h);
-FILE * initialize_log (void) ;
+FILE * initialize_log (void);
+gboolean handle_write_ssl( GIOChannel *sock, GIOCondition cond, http_request *h );
+char* peer_arp_dns(gchar* ip_add);

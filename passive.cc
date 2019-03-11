@@ -44,7 +44,7 @@ void capture_peer (http_request *h, peer *p) {
     gchar *dest, *orig = target_redirect(h);
     gchar *redir = url_encode(orig);
 
-	dest = g_strdup_printf( "http://%s:%s/?redirect=%s",h->sock_ip, CONF("GatewayPort"), redir );
+	dest = g_strdup_printf( "http://%s:%s/?redirect=%s",CONF("GatewayAddr"), CONF("GatewayPort"), redir );
 
     http_send_redirect(h, dest, p);
 
@@ -131,7 +131,7 @@ int handle_request( http_request *h ) {
 				
 				//g_debug("t1 after = %s",t1);
 				
-				dest = g_strdup_printf( "http://%s:%s/?redirect=%s",h->sock_ip, CONF("GatewayPort"), t1 );
+				dest = g_strdup_printf( "http://%s:%s/?redirect=%s",CONF("GatewayAddr"), CONF("GatewayPort"), t1 );
 				
 				http_send_redirect1( h, dest, NULL );
 				g_free(t);
@@ -253,7 +253,7 @@ void splash_peer ( http_request *h ) {
 	
     GHashTable *data1;
     gchar *path = NULL, *file, *action1, *host;
-    GIOError r;
+    //GIOError r;
    
     host = local_host( h );
     action1 = g_strdup_printf("http://%s/", host);
@@ -266,7 +266,7 @@ void splash_peer ( http_request *h ) {
 	
 	if (file != NULL) {
 		
-		r = http_serve_template( h, file, data1 );
+		http_serve_template( h, file, data1 );
 		g_debug( "splash_peer: peer %s splashed", h->peer_ip );
 	}
 
@@ -283,7 +283,7 @@ void punish_peer ( http_request *h,peer* p, gchar* original_url) {
 	
     GHashTable *data1;
     gchar *path = NULL, *file, *action1, *host;
-    GIOError r;
+    //GIOError r;
     time_t actual_time;
     gchar* diff;
     
@@ -304,7 +304,7 @@ void punish_peer ( http_request *h,peer* p, gchar* original_url) {
 	file = load_file(path);
 	if (file != NULL) {
 		
-		r = http_serve_template(h, file, data1);
+		http_serve_template(h, file, data1);
 		g_debug( "punish_peer: peer %s informed of punishment", h->peer_ip );
 	}
 	

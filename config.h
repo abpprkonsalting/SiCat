@@ -20,6 +20,6 @@
 /* Define to the version of this package. */
 #define PACKAGE_VERSION "0.1b"
 
-//#define __LITTLE_ENDIAN_BITFIELD "0"
+#define __LITTLE_ENDIAN_BITFIELD "0"
 
-#define __BIG_ENDIAN_BITFIELD "0"
+//#define __BIG_ENDIAN_BITFIELD "0"

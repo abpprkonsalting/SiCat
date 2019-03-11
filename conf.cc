@@ -91,7 +91,7 @@ void set_network_defaults( GHashTable *conf ) {
 	    g_hash_table_insert(conf, (gpointer)"NodeID", (gpointer)mac);
 	    g_message( "set_network_defaults: My node ID is %s (%s)", mac, intdev);
 	} else
-	    g_warning( "set_network_defaults: No NodeID discernable from MAC address!" );
+	    g_message( "set_network_defaults: No NodeID discernable from MAC address!" );
     }
 }
 
@@ -102,11 +102,11 @@ GHashTable *read_conf_file( const gchar *path ) {
     file = load_file(path);
 
     if (file == NULL) {
-		g_warning("error");
+		g_message("read_conf_file: error, could not load conf file..");
 		return NULL;
 	}
     if (nocat_conf != NULL) {
-		g_warning("read_conf_file: Reloading configuration from %s!", path);
+		g_message("read_conf_file: Reloading configuration from %s!", path);
 		g_free(nocat_conf);
     }
 
@@ -123,7 +123,7 @@ gchar *conf_string(GHashTable *conf, const gchar *key ){
 	gchar* val;
 
 	val = (gchar*) g_hash_table_lookup( conf, key );
-	if (val == NULL) g_warning("conf_string: Missing required configuration directive '%s'", key);
+	if (val == NULL) g_message("conf_string: Missing required configuration directive '%s'", key);
 	return val;
 }
 
@@ -143,10 +143,10 @@ glong conf_int( GHashTable *conf, const gchar *key ) {
 	g_assert( conf != NULL );/* added by abp*/
 
 	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
-	if (val == NULL) g_warning("conf_int: Missing required configuration directive '%s'", key);
+	if (val == NULL) g_message("conf_int: Missing required configuration directive '%s'", key);
 
 	vint = strtol( val, &err, 10 );
-	if ( err != NULL && *err != '\0' ) g_warning("conf_int: Invalid numeric configuration directive '%s': %s", key, val );
+	if ( err != NULL && *err != '\0' ) g_message("conf_int: Invalid numeric configuration directive '%s': %s", key, val );
 
 	return vint;
 }
@@ -167,10 +167,10 @@ gdouble conf_float( GHashTable *conf, const gchar *key ) {
 	g_assert( conf != NULL );/* added by abp*/
 
 	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
-	if (val == NULL) g_warning("conf_float: Missing required configuration directive '%s'", key);
+	if (val == NULL) g_message("conf_float: Missing required configuration directive '%s'", key);
 
 	vdbl = strtod( val, &err );
 	if ( err != NULL && *err != '\0' )
-	g_warning("conf_float: Invalid numeric configuration directive '%s': %s", key, val );
+	g_message("conf_float: Invalid numeric configuration directive '%s': %s", key, val );
 	return vdbl;
 }

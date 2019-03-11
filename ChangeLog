@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+2015-02-10:
+
+Changes in function peer_arp_dns so now it returns a non null value, which is th MAC of the client terminal it's been asked for. In previous version it passed the 
+MAC value in a pointer passed.
+
+The initialization of NFQUEUE interface was changed to a single function (initialize_queue), to which is passed as parameters the queue number as well as a callback function.
+
+Starting to work on support for https:
+
+	queue nfq_ssl_callback in user space for keeping a relational table between client connections and real server ip. This is for ussing later in the sniffing proccess.
+	In the redirect to port 5281 it's lost the real server ip.
+
+	Added two servers:
+
+		- first on port 5281 listening on port 443.
+
+		- second on port 5282 of lo. A bridge is created to this from the previous for intercepting ssl and capture the SNI.
+
+	As a start the needed fields to work with https where added to the structure http_request, which is not correct because an https connection is not part of an
+	http request. This will be fixed in next version.
+
 2014-11-01:
 
 Lot of fixes. First version for production.
