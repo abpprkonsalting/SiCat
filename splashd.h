@@ -1,5 +1,5 @@
 # include <glib.h>
-#include <glib/gstdio.h>
+# include <glib/gstdio.h>
 # include <stdio.h>
 # include <string.h>
 # include <time.h>
@@ -21,19 +21,7 @@
 //#include <libnetfilter_queue/linux_nfnetlink_queue.h>
 # include <linux/netfilter.h>
 
-//# include "tls/tls.h"
-
-extern GHashTable* peer_tab;
-GHashTable* ssl_connected_tab;
-GHashTable* ssl_certificates_tab;
-static int exit_signal = 0;
-static FILE* pid_file = NULL;
-gchar* macAddressFrom; 
-class comm_interface* wsk_comm_interface;
-gchar* table;
-FILE * log_fd;
-gchar* datalnet_IP;
-struct hs_array_t* hs_array;
+# include "tls/tls.h"
 
 struct nfq_handle
 {
@@ -56,14 +44,14 @@ struct nfq_q_handle
          struct nfattr **data;
  };
 
-struct nfq_handle* http_queue_handle;
+/*struct nfq_handle* http_queue_handle;
 struct nfq_q_handle* http_q_queue_handle;
 
 struct nfq_handle* http_input_queue_handle;
 struct nfq_q_handle* http_input_q_queue_handle;
 
 struct nfq_handle* ssl_queue_handle;
-struct nfq_q_handle* ssl_q_queue_handle;
+struct nfq_q_handle* ssl_q_queue_handle;*/
 
 struct nfq_iphdr
 {
@@ -139,7 +127,28 @@ uint16_t len;
 uint16_t check;
 };
 
+/************************************************************ Global variables ************************************************************/
+extern GHashTable* peer_tab;
+GHashTable* ssl_connected_tab;
+GHashTable* ssl_certificates_tab;
+static int exit_signal = 0;
+static FILE* pid_file = NULL;
+gchar* macAddressFrom; 
+class comm_interface* wsk_comm_interface;
+gchar* table;
+FILE * log_fd;
+gchar* datalnet_IP;
+struct hs_array_t* hs_array;
+
+guint ssl_connections_secuence_numbers;
+jmp_buf state;
+int test_var;	// This variable must be global because when the function destroy_ssl_conn fails there should be no internal variables defined
+				// for the purpouse of not letting them hanging. (?)
+
+/************************************************************ Function declarations ********************************************************/
+
 gboolean show_socket_pairs(gchar* function_name, http_request *h);
 FILE * initialize_log (void);
-gboolean handle_write_ssl( GIOChannel *sock, GIOCondition cond, http_request *h );
 char* peer_arp_dns(gchar* ip_add);
+int initialize_queue(unsigned int queue_number,int (*nfq_callback)(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,struct nfq_data *nfad, void *data));
+gboolean handle_queue( GIOChannel *channel, GIOCondition cond, struct nfq_handle* queue_handle);

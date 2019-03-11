@@ -1,11 +1,7 @@
-# include <openssl/ssl.h>
 # include <glib.h>
 
 # include <sys/socket.h>
 # include <netinet/in.h>
-# include <openssl/err.h>
-
-# include <openssl/evp.h>
 # include <sys/types.h>
 # include <sys/stat.h>
 # include <signal.h>
@@ -25,41 +21,6 @@
 # define QUERY(x)  (h->query == NULL  ? NULL : \
 	(gchar *)g_hash_table_lookup(h->query, (x)))
 
-struct ssl_buffer {
-	
-	size_t tamanno;
-	gchar* buffer;
-};
-
-struct DN_field {
-	
-	char* name;
-	unsigned int cantidad;
-	char** elemento;
-};
-
-struct Distinguished_Name {
-	
-	/*char** C;	// Country name	 ********** NID_countryName
-	char** ST;	// State or Province Name ********** NID_stateOrProvinceName
-	char** L;	// Locality Name **********  NID_localityName
-	char** O;	// Organization Name ********** NID_organizationName 
-	char** OU;	// Organizational Unit Name **********  NID_organizationalUnitName
-	char** CN;	// Common Name **********  NID_commonName 
-	char** E;	// email. **********  NID_registeredAddress  NID_presentationAddress
-	*/
-	
-	struct DN_field ** campos;
-	
-};
-
-
-
-struct certificate_data {
-	
-	struct Distinguished_Name* DN;
-};
-
 typedef struct {
     gchar* uri;
     gchar* uri_orig;
@@ -69,7 +30,7 @@ typedef struct {
     GHashTable* response;
     GString* buffer;				// Inicializado en http_request_new() a "", llenado en http_request_read
     gboolean complete;
-    GIOChannel* sock;				// Inicializado en http_request_new()
+    GIOChannel* channel;				// Inicializado en http_request_new()
     gchar peer_ip[16];				// Inicializado en http_request_new()
     unsigned short int peer_port;
     gchar peer_ip6[50];
@@ -78,25 +39,6 @@ typedef struct {
     gchar hw[18]; /* 11:22:33:44:55:66 */
     gboolean is_used;
     guint source_id;
-    
-    // SSL parameters
-    
-    gchar* ssl_remote_ip;
-    gboolean is_ssl;
-    int outside_fd;
-    int ssl_server_fd;
-    struct ssl_buffer* ssl_buff;
-    unsigned char ssl_capture_status;	// 0 = Se acaba de comenzar el proceso.
-										// 1 = Esperando por la llegada del SNI completo.
-										// 2 = Conect'andose con el servidor real.
-										// 3 = Extrayendo los datos del certificado real.
-										// 4 = Creando el certificado propio.
-										// 5 = Proceso terminado, haciendo puente con el servidor openssl interno
-	char *ssl_server_name_extension;
-	char *server_certificate;
-	SSL *real_server_ssl;
-	GIOChannel* ssl_external_sock;
-	X509 *real_server_certificate;
 	
 } http_request;
 
@@ -129,14 +71,13 @@ typedef struct peer_st {
     
 } peer;
 
-# include "tls/tls.h"
 
 /*** Function prototypes start here ***/
 GIOChannel* http_bind_socket( const char *ip, int port, int queue );
 GIOChannel *http_bind_socket6( const char *ip, int port, int queue );
 void peer_arp_h( http_request *h );
-http_request* http_request_new ( GIOChannel *sock,int fd );
-http_request* http_request_new6 ( GIOChannel* sock,int fd  );
+http_request* http_request_new ( GIOChannel *channel,int fd );
+http_request* http_request_new6 ( GIOChannel* channel,int fd  );
 void http_request_free ( http_request *h );
 GHashTable* parse_query_string( gchar *query );
 GHashTable* http_parse_header (http_request *h, gchar *req);
@@ -156,6 +97,4 @@ ssize_t http_sendfile ( http_request *h, int in_fd );
 int http_serve_file ( http_request *h, const gchar *docroot );
 void http_serve_template ( http_request *h, gchar *file, GHashTable *data );
 
-gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h );
-
-void llenar_buffer(http_request *h,gchar* buf,guint n);
+gboolean handle_read( GIOChannel *channel, GIOCondition cond, http_request *h );

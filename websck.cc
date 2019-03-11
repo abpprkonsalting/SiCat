@@ -478,7 +478,7 @@ m_frame::m_frame(char* message, unsigned int m_size, bool* correct){
 			
 			memcpy(parameters_header_end,"\0",1);
 			message_remaining = parameters_header_end + 1;
-			parameters = g_new0(struct params,1);
+			parameters = g_new0(struct parametros,1);
 		}
 		else return;
 		
@@ -515,7 +515,7 @@ m_frame::m_frame(char* message, unsigned int m_size, bool* correct){
 }
 
 /* class m_frame constructor from fields (build a class m_frame given certain fields)
-m_frame::m_frame(char* comando, struct params* parameters_in, struct data* datos_in, bool* correct) {
+m_frame::m_frame(char* comando, struct parametros* parameters_in, struct data* datos_in, bool* correct) {
 
 	m_frame_index = 0;
 	m_frame_index_ack = 0;
@@ -654,7 +654,7 @@ char* m_frame::get_command_name(){
 	return command_name;
 }
 
-struct params* m_frame::get_parameters(){
+struct parametros* m_frame::get_parameters(){
 
 	return parameters;
 }
@@ -942,7 +942,7 @@ send_messages_queu::~send_messages_queu(){
 
 // Receptor de tramas
 
-bool send_messages_queu::add_frame(char* comando, struct params* parameters_in, struct data* datos_in){
+bool send_messages_queu::add_frame(char* comando, struct parametros* parameters_in, struct data* datos_in){
 
 	//bool right = false;
 
@@ -1229,7 +1229,7 @@ void comm_interface::wsk_client_connect (void){
 		
 }
 
-int comm_interface::wsk_send_command(char* comando, struct params* parameters_in, struct data* datos_in){
+int comm_interface::wsk_send_command(char* comando, struct parametros* parameters_in, struct data* datos_in){
 	
 	if (comando != NULL){
 		sender_queu->add_frame(comando, parameters_in, datos_in);

@@ -1,20 +1,11 @@
 # include <glib.h>
 # include <unistd.h>
-# include <stdio.h>
-# include <errno.h>
-# include <string.h>
-# include <sys/stat.h>
-# include <sys/sendfile.h>
-# include <sys/ioctl.h>
-# include <sys/socket.h>
-# include <net/if.h>
-# include <netinet/in.h>
 # include <libwebsockets.h>
 
 # include "linux.h"
 
 ssize_t http_sendfile ( http_request *h, int in_fd ) {
-    int out_fd = g_io_channel_unix_get_fd( h->sock );
+    int out_fd = g_io_channel_unix_get_fd( h->channel );
     struct stat s;
     ssize_t r;
     off_t len = 0;

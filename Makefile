@@ -6,14 +6,16 @@
 
 # variables
 
-OBJECTS = splashd.o conf.o util.o linux.o gateway.o firewall.o http.o websck.o passive.o
-INCLUDES = -I. -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include
+OBJECTS = splashd.o conf.o util.o linux.o gateway.o firewall.o http.o websck.o passive.o tls.o
+INCLUDES = -I. -I/usr/include `pkg-config --cflags glib-2.0 gio-unix-2.0`
 WARNINGS = -Wall
 LIBRARYPATH = -L/usr/lib -L/lib
-LIBRARIES = -lglib-2.0 -lcrypt -lwebsockets
+LIBRARIES = -lcrypt -lwebsockets `pkg-config --libs glib-2.0 gio-unix-2.0` -lnetfilter_queue -lssl
 CC = g++
-EXECUTABLE = splashd
-CONFFILE = nocat.conf
+#LD = nccld
+#CC = nccgen -ncgcc=g++ -ncld -ncfabs
+EXECUTABLE = sicatd
+CONFFILE = sicat.conf
 
 
 DEBUG_YES = -g
@@ -29,13 +31,13 @@ OPTIMIZATIONS_3 = -O3
 #optimization for size
 OPTIMIZATIONS_s = -Os
 
-OPTIMIZATIONS = $(OPTIMIZATIONS_3)
+OPTIMIZATIONS = $(OPTIMIZATIONS_s)
 
 OUTPUT = -o $(EXECUTABLE)
 
 # Rules
 
-splashd : $(OBJECTS)
+sicatd	: $(OBJECTS)
 	$(CC) $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) $(OUTPUT) $(OBJECTS) $(LIBRARYPATH) $(LIBRARIES)
 	
 splashd.o : splashd.cc splashd.h gateway.h
@@ -58,39 +60,46 @@ firewall.o : firewall.cc firewall.h
 
 http.o : http.cc http.h util.cc util.h mime.h
 	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) http.cc
-	
+
 websck.o : websck.h websck.cc gateway.h config.h
 #	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) -Wno-pmf-conversions websck.cc
 	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) websck.cc
 
 passive.o : gateway.h passive.cc firewall.cc firewall.h conf.h util.h
 	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) passive.cc
+	
+tls.o : tls/tls.c tls/tls.h
+	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) tls/tls.c
 
-.PHONY: clean install install-local test test-local
+csicatd	: csicatd.o
+	$(CC) $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) -o csicatd csicatd.o $(LIBRARYPATH) `pkg-config --libs glib-2.0 gio-unix-2.0`
+	
+csicatd.o : csicatd.cc csicatd.h
+	$(CC) -c $(INCLUDES) $(WARNINGS) $(OPTIMIZATIONS) $(DEBUG) csicatd.cc
+
+.PHONY: clean clean-all install test
 
 clean :
 	-rm -f $(EXECUTABLE) $(OBJECTS)
 
-install :
-	-cp -f $(EXECUTABLE) /usr/local/sbin/$(EXECUTABLE)
-	-cp -f $(CONFFILE) /usr/local/etc/$(CONFFILE)
-	-cp -f iptables/initialize.fw /usr/local/libexec/nocat/initialize.fw
-	-cp -f iptables/access.fw /usr/local/libexec/nocat/access.fw
-	
-	
-install-local: $(EXECUTABLE) nocat-local.conf iptables/initialize.fw
+clean-all:
 
-	-cp -f $(EXECUTABLE) /usr/local/sbin/$(EXECUTABLE)
-	-cp -f nocat-local.conf /usr/local/etc/$(CONFFILE)
-	-cp -f iptables/initialize.fw /usr/local/libexec/nocat/initialize.fw
-	-cp -f iptables/access.fw /usr/local/libexec/nocat/access.fw
-	
+	-rm -f $(EXECUTABLE) $(OBJECTS)
+	-rm -f /usr/sbin/$(EXECUTABLE)
+	-rm -f /usr/libexec/sicat/*
+	-rm -f /etc/$(CONFFILE)
+	-rm -f /usr/share/sicat/htdocs/splash.html
+	-rm -f /usr/share/sicat/htdocs/images/*
+
+install :
+	-cp -rf $(EXECUTABLE) /usr/sbin/$(EXECUTABLE)
+	-cp -rf iptables/* /usr/libexec/sicat
+	-cp -rf $(CONFFILE) /etc/$(CONFFILE)
+	-cp -rf htdocs/splash.html /usr/share/sicat/htdocs
+	-cp -rf htdocs/images/* /usr/share/sicat/htdocs/images
+
 test :
+	make clean-all
 	make
 	make install
-	/usr/local/sbin/$(EXECUTABLE)
-	
-test-local:
-	make
-	make install-local
-	/usr/local/sbin/$(EXECUTABLE)
+	/usr/sbin/$(EXECUTABLE)

@@ -1,6 +1,13 @@
 Changelog
 ---------
 
+2015-05-02:
+========================
+
+Reorganizing https handdling:
+
+Created the struct ssl_connection in /tls/tls.c. All related fields that where incorrectly located in http_request are here now.
+
 2015-02-10:
 
 Changes in function peer_arp_dns so now it returns a non null value, which is th MAC of the client terminal it's been asked for. In previous version it passed the 
@@ -23,10 +30,12 @@ Starting to work on support for https:
 	http request. This will be fixed in next version.
 
 2014-11-01:
+========================
 
 Lot of fixes. First version for production.
 
 2014-10-05:
+========================
 
 Going back to previous approach of grace / punishment periods. Yet keeping the use of iptables queue handdling in user space to make decisions (not DNS, this has been removed)
 Some other changes:
@@ -35,10 +44,12 @@ Some other changes:
 delay is just because bad network conditions or the client not paying attention for whatever reason, so it makes no so much sense to punish.
 
 2014-10-02:
+========================
 
 Removing the grace and punishment periods. First "functional" testing version based in the new approach.
 
 2014-09-15:
+========================
 
 Implementing a new approach on how to control the access of the client to Internet based on tracking the url / ips the client is requesting,
 and comparing against a known table of authorized url for the phase the client is currently. This table is populated with the own DNS requests from 
@@ -59,6 +70,7 @@ The previously implemented periods will continue to exist as well as the punishm
 
 
 2014-09-09:
+========================
 
 Added the "punishment" function to clients who navigate during the grace period without being authenticated. If the grace period passes and the client
 has not been authenticated on the server (the device has not received the signal that the client performed the authentication correctly) the client is 
@@ -68,6 +80,7 @@ it's shown a page informing him that must wait for the punishment time before tr
 This function is controlled by the "AllowPunishment" variable of the configuration file, which defaults to 0 (the function of punishment).
 
 2014-09-03:
+========================
 
 Changed the mechanism for checking the connection time of users to the system. Now the program does not have a control of the connected users
 but in the "access.fw" file, when the rules are added to iptables that allow the user to pass through the firewall, these are

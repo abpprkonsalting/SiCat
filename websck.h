@@ -43,9 +43,9 @@ struct item {
 	char* valor;
 };
 
-struct params {
+struct parametros {
 
-	unsigned int cant;
+	unsigned int cantidad;
 	struct item** items;
 };
 
@@ -62,7 +62,7 @@ class m_frame {
 	char ToDeviceId[40];
 
 	unsigned int cant;
-	struct params* parameters;
+	struct parametros* parameters;
 
 	// other members
 
@@ -72,7 +72,7 @@ class m_frame {
 	public:
 
 	m_frame(char* message, unsigned int m_size, bool* correct);
-	//m_frame(char* comando, struct params* parameters_in, struct data* datos_in, bool* correct);
+	//m_frame(char* comando, struct parametros* parameters_in, struct data* datos_in, bool* correct);
 	~m_frame();
 
 	unsigned short int get_index();
@@ -80,7 +80,7 @@ class m_frame {
 	//unsigned short int get_body_size();
 	//char* get_frame_type();
 	//char* get_command_name();
-	//struct params* get_parameters();
+	//struct parametros* get_parameters();
 	//struct data* get_data();
 	//bool mark_readed();
 	//bool is_readed();
@@ -123,7 +123,7 @@ class send_messages_queu {
 	send_messages_queu();
 	~send_messages_queu();
 
-	bool add_frame(char* comando, struct params* parameters_in, struct data* datos_in);
+	bool add_frame(char* comando, struct parametros* parameters_in, struct data* datos_in);
 	bool delete_frame(unsigned int m_frame_index);
 	void run(struct libwebsocket *wsi,enum STATUSES wsk_status);
 	unsigned short int get_count();
@@ -170,7 +170,7 @@ class comm_interface {
 	void clear_init();
 	void set_init();
 	
-	int wsk_send_command(char* comando, struct params* parameters_in, struct data* datos_in);
+	int wsk_send_command(char* comando, struct parametros* parameters_in, struct data* datos_in);
 	int solve_dns(GHashTable *conf);
 	void set_wsk_server_IP(gchar* server_IP);
 	int wsk_initialize();

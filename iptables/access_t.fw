@@ -42,7 +42,7 @@ else
 fi
 
 # Capture http/https traffic from the client to the outside world.
-#iptables -t mangle $cmd SiCat_p$table  -m mac --mac-source $mac -s $ip -m mark ! --mark 0x3 -p tcp --dport 80 -m time --timestart $start --timestop $end --kerneltz  -j LOG --log-level 4 --log-prefix 'SiCat_m'
+
 iptables -t mangle $cmd SiCat_p$table  -m mac --mac-source $mac -s $ip -m mark ! --mark 0x3 -p tcp --dport 80 -m time --timestart $start --timestop $end --kerneltz -j NFQUEUE --queue-num 0 --queue-bypass
 iptables -t mangle $cmd SiCat_p$table  -m mac --mac-source $mac -s $ip -m mark ! --mark 0x3 -p tcp --dport 443 -m time --timestart $start --timestop $end --kerneltz -j NFQUEUE --queue-num 0 --queue-bypass
 

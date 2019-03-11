@@ -61,10 +61,12 @@ gboolean redirecciona_delayed (fw_action *act ){
 	g_string_free( dest, 1 );
 	g_hash_free( args );
 	
+    // Tengo que experimentar aquí poner g_source_unref(source) antes del g_source_destroy.
+    
     GSource *source = g_main_context_find_source_by_id(NULL,act->h->source_id);
     g_source_destroy(source);
-    g_io_channel_shutdown(act->h->sock,TRUE,NULL);
-	g_io_channel_unref(act->h->sock );
+    g_io_channel_shutdown(act->h->channel,TRUE,NULL);
+	g_io_channel_unref(act->h->channel );
 	
 	/*g_source_unref(source);
 	gboolean destr = g_source_is_destroyed(source);

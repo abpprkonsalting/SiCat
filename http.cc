@@ -16,11 +16,7 @@
 # include "http.h"
 # include "mime.h"
 
-/*Modifications added by abp*/
-
 extern struct hs_array_t* hs_array;
-
-extern GHashTable* ssl_connected_tab;
 
 GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
  
@@ -172,7 +168,7 @@ void peer_arp_h( http_request *h ) {
     fclose( arp );
 }
 
-http_request* http_request_new ( GIOChannel* sock,int fd ) {
+http_request* http_request_new ( GIOChannel* channel,int fd ) {
 
     http_request* h = g_new0(http_request, 1);
     struct sockaddr_in addr;
@@ -180,19 +176,10 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
     int r;
     const gchar* r2;
 
-    h->sock   = sock;
+    h->channel   = channel;
     h->buffer = g_string_new("");
     h->is_used = FALSE;
 	//h->source_id = 0;
-	h->is_ssl = FALSE;
-	h->outside_fd = fd;
-	h->ssl_server_fd = 0;
-	h->ssl_buff = g_new0(struct ssl_buffer, 1);
-	h->ssl_buff->buffer = NULL;
-	h->ssl_buff->tamanno = 0;
-	h->ssl_capture_status = 0;	// Se acaba de crear la conexi'on, no se ha empezado el proceso de sniffeado de certificado.
-	h->ssl_server_name_extension = NULL;
-	h->server_certificate = NULL;
 	
     r = getsockname( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
     if (r == -1) { 
@@ -214,42 +201,19 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
     
 	peer_arp_h(h);
 	
-	gchar* key = g_new0(char,40);
-		
-	strcat(key,h->hw);
-	strcat(key,"//");
-	strcat(key,h->peer_ip);
-		
-	gchar* puerto_origen = g_new0(gchar,4);
-	sprintf (puerto_origen, "%d",h->peer_port);
-		
-	strcat(key,":");		
-	strcat(key,puerto_origen);
-	
-	g_free(puerto_origen);
-	
-	h->ssl_remote_ip = (gchar*) g_hash_table_lookup(ssl_connected_tab, key);
-	
-	//g_debug("http_request_new: real remote ssl server = %s",h->ssl_remote_ip);
-	
-	g_free(key);
-	
-	h->real_server_certificate = NULL;
-	h->ssl_external_sock = NULL;
-	
     return h;
 }
 
-http_request* http_request_new6 ( GIOChannel* sock,int fd ) {
+http_request* http_request_new6 ( GIOChannel* channel,int fd ) {
 
     http_request* h = g_new0(http_request, 1);
-    //int fd = g_io_channel_unix_get_fd( sock );
+    //int fd = g_io_channel_unix_get_fd(channel);
     struct sockaddr_in6 addr;
     int n = sizeof(struct sockaddr_in6);
     int r;
     const gchar* r2;
 
-    h->sock   = sock;
+    h->channel   = channel;
     h->buffer = g_string_new("");
     h->is_used = FALSE;
 
@@ -273,7 +237,7 @@ http_request* http_request_new6 ( GIOChannel* sock,int fd ) {
 
 }
 
-void http_request_free ( http_request *h ) {
+void http_request_free (http_request *h) {
 	
     g_free( h->uri );
     g_free(h->uri_orig);
@@ -283,7 +247,7 @@ void http_request_free ( http_request *h ) {
     g_hash_free( h->response );
     g_string_free( h->buffer, TRUE );
     g_free( h );
-    h = NULL;
+    //h = NULL;
     
 }
 
@@ -479,8 +443,8 @@ static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
     
     g_string_append( hdr, "\r\n" );
     
-    //r = g_io_channel_write_chars(h->sock, hdr->str, hdr->len,&n,&gerror);
-    r = g_io_channel_write_chars(h->sock, hdr->str,strlen(hdr->str),&n,&gerror);
+    //r = g_io_channel_write_chars(h->channel, hdr->str, hdr->len,&n,&gerror);
+    r = g_io_channel_write_chars(h->channel, hdr->str,strlen(hdr->str),&n,&gerror);
     
     if (gerror != NULL) {
 				
@@ -489,7 +453,7 @@ static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
 	}
 	else {
     
-		if (*(h->sock_ip) != 0) g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip);
+		if (*(h->channel_ip) != 0) g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip);
 		else g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip6);
 	}
     g_string_free( hdr, 1 );
@@ -508,10 +472,10 @@ void http_send_header (http_request *h, int status, const gchar *msg, peer *p ) 
     
     g_string_append( hdr, "\r\n" );
     
-    //r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
+    //r = g_io_channel_write( h->channel, hdr->str, hdr->len, (guint*)&n );
     
-    g_io_channel_write_chars(h->sock, hdr->str,hdr->len,(guint*)&n,NULL);
-    g_io_channel_flush(h->sock,NULL);
+    g_io_channel_write_chars(h->channel, hdr->str,hdr->len,(guint*)&n,NULL);
+    g_io_channel_flush(h->channel,NULL);
     
     g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip);
     
@@ -625,8 +589,8 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
     http_send_header( h, 200, "OK", NULL);
 
-    //r = g_io_channel_write( h->sock, form, n, &n );
-    r = g_io_channel_write_chars(h->sock, form, n,&n,&gerror);
+    //r = g_io_channel_write( h->channel, form, n, &n );
+    r = g_io_channel_write_chars(h->channel, form, n,&n,&gerror);
     
     if (gerror != NULL) {
 				
@@ -657,9 +621,9 @@ void http_serve_template ( http_request *h, gchar *file, GHashTable *data1 ) {
     http_add_header ( h, "Connection", "close");
     http_send_header( h, 200, "OK", NULL);
 
-    //r = g_io_channel_write( h->sock, form, n, &n );
-    g_io_channel_write_chars( h->sock, form, n, &n ,NULL);
-    g_io_channel_flush(h->sock,NULL);
+    //r = g_io_channel_write( h->channel, form, n, &n );
+    g_io_channel_write_chars( h->channel, form, n, &n ,NULL);
+    g_io_channel_flush(h->channel,NULL);
 
     g_free( form );
 
@@ -684,12 +648,12 @@ guint http_request_read (http_request *h) {
 	
 	//g_debug("http_request_read: entering..");
 
-	cond = g_io_channel_get_buffer_condition(h->sock);
+	cond = g_io_channel_get_buffer_condition(h->channel);
 	g_debug("http_request_read: g_io_channel_get_buffer_condition on request from %s return with buffer condition = %d", h->peer_ip, cond);
 	
 	if ((cond == 0) || (cond == 2)){
 		
-		channel_size = g_io_channel_get_buffer_size(h->sock);
+		channel_size = g_io_channel_get_buffer_size(h->channel);
 		
 		//g_debug("http_request_read: channel_size = %d",channel_size);
 		
@@ -697,12 +661,12 @@ guint http_request_read (http_request *h) {
 		
 		/*
 		buf2 = g_new0( gchar, channel_size + 2 );
-		n = recv (g_io_channel_unix_get_fd (h->sock),buf2, channel_size,MSG_PEEK);
+		n = recv (g_io_channel_unix_get_fd (h->channel),buf2, channel_size,MSG_PEEK);
 		g_debug("http_request_read: caracteres peekeados con recv: %d", n);
 		g_free(buf2);
 		*/
 		
-		r = g_io_channel_read_chars(h->sock, buf, channel_size, &n,&gerror);
+		r = g_io_channel_read_chars(h->channel, buf, channel_size, &n,&gerror);
 		
 		if (gerror != NULL) {
 				
@@ -796,30 +760,4 @@ guint http_request_read (http_request *h) {
 		g_debug("http_request_read: error: g_io_channel_get_buffer_condition on request from %s return with buffer condition = %d", h->peer_ip, cond);
 		return 2;
 	}
-}
-
-void llenar_buffer(http_request *h,gchar* buf,guint n){
-	
-	gchar* tempo;
-	
-	//g_debug("llenar_buffer: entrando para llenar el buffer: %u", h->ssl_buff);
-	//g_debug("llenar_buffer: tamanno = %u", h->ssl_buff->tamanno);
-	//g_debug("llenar_buffer: %s", h->ssl_buff->buffer);
-	
-	if (h->ssl_buff->buffer == NULL){ //El buffer est'a vacio
-		
-		h->ssl_buff->buffer = g_new0(gchar,n);
-		memcpy(h->ssl_buff->buffer,buf,n);
-		h->ssl_buff->tamanno = n;
-		
-	} else {
-		
-		tempo = g_new0(gchar,h->ssl_buff->tamanno + n);
-		memcpy(tempo,h->ssl_buff->buffer,h->ssl_buff->tamanno);
-		memcpy(tempo + (h->ssl_buff->tamanno), buf,n);
-		h->ssl_buff->tamanno = h->ssl_buff->tamanno + n;
-		g_free(h->ssl_buff->buffer);
-		h->ssl_buff->buffer = tempo;
-	}
-	return;
 }

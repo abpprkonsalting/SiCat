@@ -9,7 +9,7 @@ gboolean show_socket_pairs(gchar* function_name, http_request *h){
 	const gchar *r2;
 	unsigned short int local_port, remote_port;
 
-	fd = g_io_channel_unix_get_fd(h->sock);
+	fd = g_io_channel_unix_get_fd(h->channel);
 
 	r = getsockname (fd, (struct sockaddr *)&local_addr,  &n );
 	if (r == -1) { g_debug( "%s: getsockname failed: %m",function_name ); }
@@ -46,6 +46,7 @@ gboolean check_peers( void *dummy ) {
 	return TRUE;
 }
 
+
 gboolean change_table( void *dummy ) {
 
 	if ( strcmp(table,"0") == 0) strcpy(table,"1");
@@ -55,129 +56,24 @@ gboolean change_table( void *dummy ) {
 	return TRUE;
 }
 
-gchar* get_certificate(http_request *h){
-	
-	gchar* tempo;
-	
-	if (h->server_certificate != NULL) return h->server_certificate;
-	else {
-		// Aqu'i primero se busca en la cache de certificados en base al SNI a ver si ya tenemos un certificado
-		// para ese servidor, sino se comienza el proceso de sniffeado del certificado desde el servidor real.
-	
-		if ( strcmp(h->ssl_server_name_extension,"\0") != 0){	//Esto significa que el SNI tiene un nombre verdadero.
-		
-			tempo = (gchar*) g_hash_table_lookup(ssl_certificates_tab, h->ssl_server_name_extension);
-			
-			if ( tempo != NULL) {
-				
-				h->server_certificate = tempo;
-				return tempo;
-			}
-		}
-		// Si se llega hasta aqu'i es porque originalmente no habia un SNI, o porque en la cache de certificados no
-		// hab'ia un certificado que representara al servidor. En cualquiera de los dos casos se deber'a iniciar
-		// el proceso de sniffeado, para lo cual retornamos NULL y en la funci'on que llam'o a esta se comienza el 
-		// sniffeado.
-		return NULL;
-	}
-}
-
-gboolean time_out_SNI( http_request *h ) {
-	
-	if (h != NULL) {
-		
-		if (h->ssl_capture_status < 2) {
-		
-			// Pasaron 30 segundos y no se ha recibido el client hello correctamente
-			// por lo tanto de una manera o de otra esta conexi'on es un error.
-			
-			//Eliminar el http_request(h) y todo lo relacionado	
-			
-		}
-		
-	}
-	return FALSE;
-}
-
-void checkSNI(http_request *h){
-	
-	gchar* certificate;
-	int m;
-	
-	if (h->ssl_capture_status == 0) {
-		g_timeout_add( 30000, (GSourceFunc) time_out_SNI, h);
-		h->ssl_capture_status = 1;
-	}
-	h->ssl_server_name_extension = parse_tls_header(h->ssl_buff->buffer, h->ssl_buff->tamanno);
-	
-	if (h->ssl_server_name_extension != NULL) {
-		
-		// Se recibi'o el client hello correctamente, tenga o no un SNI.
-		
-		g_debug("checkSNI: fd = %d: se recibio el SNI = %s",g_io_channel_unix_get_fd (h->sock), h->ssl_server_name_extension);
-		
-		// Lo primero que se hace es buscar en la cache local de certificados a ver si hay alguno que corresponda
-		// al servidor que queremos suplantar.
-		certificate = get_certificate(h);
-		
-		if (certificate != NULL){	// Voala, no hay necesidad de esperar porque ya est'a el certificado en la cache
-									// interna.
-			
-			h->ssl_capture_status = 5;
-			
-			if (h->ssl_server_fd == 0) {
-			
-				m = connect_to_internal_openssl(h);
-				if (m == -1) {
-					
-				g_debug("checkSNI: no se pudo establecer conexi'on con openssl, abortando la conexi'on del cliente");
-				
-				// Tomar medidas aqu'i para tumbar la conexi'on del cliente y todo lo asociado a ella.
-				}
-			}
-		
-			// Chequear aqu'i que la conexi'on con openssl este abierta antes de escribir algo en el socket
-		
-			write (h->ssl_server_fd, h->ssl_buff->buffer,h->ssl_buff->tamanno);
-			fsync (h->ssl_server_fd);
-			
-		}
-		else {
-			//Iniciar el proceso de sniffeado.
-			m = connect_to_real_server(h);
-			
-			if (m < 0){
-				
-				// Ocurrio un error durante la conexi'on al servidor real, lo que no quiere decir que no se pueda
-				// hacer el proceso de portal cautivo. Si en el client hello originalmente hab'ia un SNI entonces
-				// creamos un certificado falso a partir de ese SNI y datos de Datalnet, y lo usamos para hacer el
-				// MITM.
-				// Si no hab'ia un SNI en el client hello original entonces hay que resolver por DNS el nombre (o los
-				// nombres ? ) que est'an registrados para la direcci'on IP de destino original de la conexi'on SSL
-				// del cliente y hacer el certificado para ese (esos) nombres de dominio.
-				// Si no se puede resolver DNS entonces si que no queda m'as remedio que tratar esto como un error.	
-			}
-		}
-	}
-	return;	
-}
 /******************************************************************************************/
 /******************************************************************************************/
-/************* Connection handlers ************/
+/********************************* Connection handlers ************************************/
 
+/**********************************************/
 /**********************************************/
 /************* Http connection handlers *******/
 
 /************* Http Read Input Data Connection handle *******/
 
-gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
+gboolean handle_read( GIOChannel *channel, GIOCondition cond, http_request *h ) {
 
 /*
  * Este handle es el que se ocupa de atender la petici'on http que lleg'o al servidor en el socket que se deriva
  * para eso en el connection handler del puerto 5280 (handle_accept).
  */
  	
-	g_debug("handle_read: reading request fd = %d",g_io_channel_unix_get_fd (h->sock));
+	g_debug("handle_read: reading request fd = %d",g_io_channel_unix_get_fd (h->channel));
 
 	guint r;
 	
@@ -189,28 +85,29 @@ gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 			
 		if (handle_request(h) == 0) {
 			
-			g_debug("handle_read: leaving without shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
+			g_debug("handle_read: leaving without shutting down request fd = %d",g_io_channel_unix_get_fd (h->channel));
 			return TRUE;
 		}
 	
 	}
 	else if (r == 0) {
 		
-		g_debug("handle_read: leaving without shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
+		g_debug("handle_read: leaving without shutting down request fd = %d",g_io_channel_unix_get_fd (h->channel));
 		return TRUE;
 	}
 	
-	g_debug("handle_read: shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
+	g_debug("handle_read: shutting down request fd = %d",g_io_channel_unix_get_fd (h->channel));
 
-	g_io_channel_shutdown(h->sock,TRUE,NULL);
-	g_io_channel_unref(h->sock );
+	g_io_channel_shutdown(h->channel,TRUE,NULL);
+	g_io_channel_unref(h->channel );
 	http_request_free(h);
 
 	return FALSE;
 }
 
 /************* Http Accept Connection handles *******/
-gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
+
+gboolean handle_accept( GIOChannel* channel, GIOCondition cond,  void* dummy ) {
 
 /*
  * Este es el handle principal para las conexiones que se establecen en el puerto 5280. Aqu'i se crea la estructura
@@ -227,8 +124,8 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 	pid_t mypid;
 	
 
-	g_debug ("handle_accept: entering on socket # = %d", g_io_channel_unix_get_fd (sock));
-	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
+	g_debug ("handle_accept: entering on socket # = %d", g_io_channel_unix_get_fd (channel));
+	fd = accept( g_io_channel_unix_get_fd(channel), NULL, NULL );
 
 	n = fcntl( fd, F_GETFL, 0 );
     fcntl( fd, F_SETFL, n | O_NONBLOCK);
@@ -236,19 +133,19 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
     mypid = getpid();
     fcntl( fd, F_SETOWN, mypid);
 	
-	conn = g_io_channel_unix_new( fd );
+	conn = g_io_channel_unix_new(fd);
 	
 	//g_io_channel_set_encoding(conn,NULL,&gerror);
 	
 	g_io_channel_set_close_on_unref(conn,TRUE);
 	g_io_channel_set_buffer_size(conn,4096);
 	
-	req  = http_request_new( conn, fd );
+	req  = http_request_new(conn,fd);
 	
 	if (req != NULL){
 		
 		//show_socket_pairs((char*)"handle_accept", req);
-		req->source_id = g_io_add_watch(req->sock, G_IO_IN,(GIOFunc)handle_read, req);
+		req->source_id = g_io_add_watch(req->channel, G_IO_IN,(GIOFunc)handle_read, req);
 		
 	}
 	else {
@@ -263,14 +160,14 @@ gboolean handle_accept( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 	return TRUE;
 }
 
-gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
+gboolean handle_accept6( GIOChannel* channel, GIOCondition cond,  void* dummy ) {
 
 	GIOChannel* conn;
 	http_request* req; /* defined in http.h */
 	int fd,n;
 	pid_t mypid;
 
-	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
+	fd = accept( g_io_channel_unix_get_fd(channel), NULL, NULL );
 
 	/* The line below need to be substituted by other error checking method that don't break daemon execution*/
 	//g_assert( fd != -1 );
@@ -311,107 +208,150 @@ gboolean handle_accept6( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
 	return TRUE;
 }
 
-/***********************************************/
-/************* Https connection handlers *******/
+/**********************************************/
+/**********************************************/
+/************* Https connection handlers ******/
 
 /************* Https Read Input Data Connection handles *******/
-gboolean handle_read_ssl( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 
-/*
- * Este handle es el que se ocupa de atender la petici'on https que lleg'o al servidor en el socket que se deriva
- * para eso en el connection handler del puerto 5281 (handle_accept_ssl). En este caso 
- */
-	
-	//g_debug("handle_read_ssl: reading request fd = %d",g_io_channel_unix_get_fd (h->sock));
+gboolean handle_client_ssl( GIOChannel *channel, GIOCondition cond,ssl_connection* s) {
 
-	gsize channel_size;
-	gchar *buf;
-	GIOStatus r;
-	guint n;
-	gint m;
-	GError* gerror = NULL;
-	
-	channel_size = g_io_channel_get_buffer_size(sock);
-	buf = g_new0( gchar, channel_size + 2 );
-	r = g_io_channel_read_chars(sock, buf, channel_size, &n,&gerror);
-	
-	if (gerror != NULL) {
-				
-		g_message("handle_read_ssl: g_io_channel_read_chars return error: %s",gerror->message);
-		g_free(buf);
-		g_io_channel_shutdown(h->sock,TRUE,NULL);
-		g_io_channel_unref(h->sock );
-		http_request_free(h);
+	if ((cond & G_IO_ERR) == G_IO_ERR){
 		
-		// Tengo que revisar la limpieza de toda la cadena de conexiones.
+		g_debug("handle_client_ssl: s = %u: G_IO_ERR",s->secuence_number);
+		s->ref_count--;
+		g_debug("handle_client_ssl: s = %u, ref_count = %u, exitting due to an error",s->secuence_number,s->ref_count);
 		return FALSE;
 	}
-	
-	if (n == 0){
-
-		g_free(buf);
-		g_debug("handle_read_ssl: leaving with error..");
+	if ((cond & G_IO_HUP) == G_IO_HUP){
 		
-		g_io_channel_shutdown(h->sock,TRUE,NULL);
-		g_io_channel_unref(h->sock );
-		http_request_free(h);
-		
-		// Tengo que revisar la limpieza de toda la cadena de conexiones.
+		g_debug("handle_client_ssl: s = %u: G_IO_HUP",s->secuence_number);
+		s->ref_count--;
+		g_debug("handle_client_ssl: s = %u, ref_count = %u, exitting due to an error",s->secuence_number,s->ref_count);
 		return FALSE;
 	}
-	
-	//g_debug("handle_read_ssl: caracteres leidos: %u", n);
-	//g_debug("handle_read_ssl: %s", buf);
-	
-	if (h->ssl_capture_status < 5) {	// A'un se est'a en el proceso de sniffeado, por lo tanto se guardan
-										// los datos en el buffer para posteriormente enviarlos al servidor
-										// interno.
-										
-		// Aqu'i debo implementar un semaforo respecto al buffer. ?
-		llenar_buffer(h,buf,n);
+	if ((cond & G_IO_IN) == G_IO_IN){
+		if (s->Channels_array[0] != NULL ) {	// Si el canal no est'a marcado para destrucci'on.
 		
-		if (h->ssl_capture_status < 2) {	// buscando el SNI
-											
-			checkSNI(h);
-		}
-	}
-	else {
-		
-		if (h->ssl_server_fd == 0) {
+			gsize channel_size;
+			gchar *buf;
+			GIOStatus r;
+			guint n;
+			gint m;
+			GError* gerror = NULL;
 			
-			m = connect_to_internal_openssl(h);
-			if (m == -1) {
+			channel_size = g_io_channel_get_buffer_size(channel);
+			buf = g_new0( gchar, channel_size + 2 );
+			r = g_io_channel_read_chars(channel, buf, channel_size, &n,&gerror);
+			
+			if ((gerror != NULL) || (n == 0)) {
+		
+				if (gerror != NULL) g_debug("handle_client_ssl: s = %u: g_io_channel_read_chars return error: %s"\
+					,s->secuence_number,gerror->message);
+				else g_debug("handle_client_ssl: s = %u: g_io_channel_read_chars connection closed by the peer"\
+					,s->secuence_number);
+				g_free(buf);
 				
-			g_debug("handle_read_ssl: no se pudo establecer conexi'on con openssl, abortando la conexi'on del cliente");
-			
-			// Tomar medidas aqu'i para tumbar la conexi'on del cliente y todo lo asociado a ella.
+				g_io_channel_shutdown(channel,FALSE,NULL);
+				g_io_channel_unref(channel);
+				s->Channels_array[0] = NULL;
+				// Also we must mark every channel to be destroyed
+				s->Channels_array[1] = NULL;
+				s->Channels_array[2] = NULL;
+				s->ref_count--;
+				
+				g_debug("handle_client_ssl: s = %u, ref_count = %u, exitting",s->secuence_number,s->ref_count);
+		
+				// s->arreglo_source_ids[0] = 0;
+				
+				// The next comment is not completely true.
+				
+				// Here is it's only necessary to return FALSE, because this will order Glib to invoke the GDestroyNotify function, in which everything
+				// will be destroyed, except the event source of this very GIOChannel because that one is automatically destroyed when we return FALSE.
+				// That's why it's necessary to cero the varible arreglo_source_ids[0] in the former instruction. The GIOChannel could has been 
+				// left alone, in order to shut it down in the GDestroyNotifiy function, but it's safer to do so here, marking it as shut NULLING 
+				// the s->Channels_array[0]  variable.  
+				
+				// This is a fatal error, so we have to mark the ssl_connection for destroy in the GDestroyNotify function
+				s->mark_destroy = TRUE;
+				return FALSE;
 			}
+		
+			/* Para no volver a cometer el mismo error de interpretación que me tomó varias semanas inventando semáforos, etc, aclaro esto aquí y en español,
+			// para entenderlo bien clarito: Es imposible que si se está realizando el proceso de chequeo del SNI (capture_status < 2), esta función en la 
+			// que estamos ahora interrumpa para agregar alguna información al buffer. Esto es así pues la secuencia de acciones del chequeo del SNI es 
+			// una secuencia lineal que se comienza desde esta misma función, y mientras no se retorne de esta función el GIOChannel no puede generar un 
+			// evento nuevo de información recibida en el canal.
+			
+			// Now the previous note but for the people that do not understand spanish: It's imposible that in the middle of the SNI check process 
+			// (capture_status < 2) this function in which we are now interrupt to add information to the buffer. This is so because the secuence of actions
+			// that take place during the SNI check process is a linear one, that start from this very same function, and until this function has not returned
+			// the GIOChannel can not generate a new event informing that there is information to receive from the phisical channel.
+			*/
+			
+			if (s->capture_status < 2) {	// buscando el SNI
+		
+				llenar_first_buffer(s,buf,n);
+				m = checkSNI(s);
+				
+				if (m == -1) {
+					
+					g_free(buf);
+					g_io_channel_shutdown(channel,FALSE,NULL);
+					g_io_channel_unref(channel);
+					s->Channels_array[0] = NULL;
+					// Also we must mark every channel to be destroyed
+					s->Channels_array[1] = NULL;
+					s->Channels_array[2] = NULL;
+					s->ref_count--;
+				
+					g_debug("handle_client_ssl: s = %u, ref_count = %u, exitting",s->secuence_number,s->ref_count);
+					//s->arreglo_source_ids[0] = 0;
+					
+					// This is a fatal error, so we have to mark the ssl_connection for destroy in the GDestroyNotify function
+					s->mark_destroy = TRUE;
+					return FALSE;
+				}
+			}
+			else {
+				// The SNI was founded (or not), any way from this moment on anything that enters this channel is included in the queue. How, and when the
+				// packages of the queue are sended to the internal openssl channel is not of the concern of this function.
+				
+				struct ssl_buffer* my_buffer = g_new0(struct ssl_buffer,1);
+				my_buffer->tamanno = n;
+				my_buffer->buffer = g_strdup(buf);
+				my_buffer->next = NULL;
+				my_buffer->previous = NULL;
+				my_buffer->write_tries = 0;
+				
+				insert_in_queue(s->ssl_queue,my_buffer);
+		
+			}
+			g_free(buf);
+			return TRUE;
 		}
-		
-		// Chequear aqu'i que la conexi'on con openssl este abierta antes de escribir algo en el socket
-		
-		write (h->ssl_server_fd, h->ssl_buff->buffer,h->ssl_buff->tamanno);
-		fsync (h->ssl_server_fd);
+		else {
+			
+			s->ref_count--;
+			g_debug("handle_client_ssl: s = %u, ref_count = %u, exitting",s->secuence_number,s->ref_count);
+			return FALSE;
+		}
 	}
-	
-	g_free(buf);
-
-	return TRUE;
 }
 
-gboolean handle_read_openssl( GIOChannel *sock, GIOCondition cond, void *h ) {
+gboolean handle_read_openssl( GIOChannel *channel, GIOCondition cond, void* dummy ) {
 	
-	g_debug("handle_read_openssl: reading request fd = %d",g_io_channel_unix_get_fd (sock));
+	g_debug("handle_read_openssl: entering");
 
-	gsize channel_size;
+	/*gsize channel_size;
 	gchar *buf;
 	GIOStatus r;
 	guint n,m;
 	GError* gerror = NULL;
 	
-	channel_size = g_io_channel_get_buffer_size(sock);
+	channel_size = g_io_channel_get_buffer_size(channel);
 	buf = g_new0( gchar, channel_size + 2 );
-	r = g_io_channel_read_chars(sock, buf, channel_size, &n,&gerror);
+	r = g_io_channel_read_chars(channel, buf, channel_size, &n,&gerror);
 	
 	if (gerror != NULL) {
 				
@@ -423,38 +363,38 @@ gboolean handle_read_openssl( GIOChannel *sock, GIOCondition cond, void *h ) {
 	g_debug("handle_read_openssl: caracteres leidos: %u", n);
 	g_debug("handle_read_openssl: %s", buf);
 	
-	g_io_channel_write_chars(sock, buf,m,(guint*)&n,NULL);
-    g_io_channel_flush(sock,NULL);
+	g_io_channel_write_chars(channel, buf,m,(guint*)&n,NULL);
+    g_io_channel_flush(channel,NULL);
 	
-	g_free(buf);
+	g_free(buf);*/
 	
+	g_debug("handle_read_openssl: exiting");
 	return TRUE;
 
 }
 
 
 /************* Https Accept Connection handles *******/
-gboolean handle_accept_ssl( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
+gboolean handle_accept_ssl( GIOChannel* channel, GIOCondition cond,  void* dummy ) {
 
 /*
  * Este es el handle principal para las conexiones que se establecen en el puerto 5281 (ssl). Aqu'i se crea 
- * la estructura http_request que representa a la conexi'on del cliente y se acepta la conexi'on, 
+ * la estructura ssl_connection que representa a la conexi'on del cliente y se acepta la conexi'on, 
  * estableciéndose ésta entre el socket original remoto del usuario y un socket nuevo que se guarda 
- * en h->outside_fd. En este caso la variable "is_ssl" de la estructura http_request que representa a la conexi'on
- * del usuario se inicializa en TRUE para indicar que esta es una conexi'on ssl.
- * Se establece un watch en el pool principal del programa para recibir los datos desde el usuario (handle_read_ssl).
- * A este watch se le entra con una referencia a la estructura http_request de la conexi'on.
+ * en s->outside_fd.
+ * Se establece un watch en el pool principal del programa para recibir los datos desde el usuario (handle_client_ssl).
+ * A este watch se le entra con una referencia a la estructura ssl_connection de la conexi'on.
  */
  
-	GIOChannel* conn;
-	http_request* req; /* defined in http.h */
+	GIOChannel* client_channel;
+	ssl_connection* s;
 	int fd,n;
 	pid_t mypid;
 	GError* gerror = NULL;
 	
 
-	//g_debug ("handle_accept_ssl: entering on socket # = %d", g_io_channel_unix_get_fd (sock));
-	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
+	//g_debug ("handle_accept_ssl: entering on socket # = %d", g_io_channel_unix_get_fd (channel));
+	fd = accept( g_io_channel_unix_get_fd(channel), NULL, NULL );
 
 	n = fcntl( fd, F_GETFL, 0 );
     fcntl( fd, F_SETFL, n | O_NONBLOCK);
@@ -462,41 +402,53 @@ gboolean handle_accept_ssl( GIOChannel* sock, GIOCondition cond,  void* dummy ) 
     mypid = getpid();
     fcntl( fd, F_SETOWN, mypid);
 	
-	conn = g_io_channel_unix_new( fd );
+	client_channel = g_io_channel_unix_new(fd);
 	
-	g_io_channel_set_encoding(conn,NULL,&gerror);
+	g_io_channel_set_encoding(client_channel,NULL,&gerror);
 	
-	g_io_channel_set_close_on_unref(conn,TRUE);
-	g_io_channel_set_buffer_size(conn,0);
+	g_io_channel_set_close_on_unref(client_channel,TRUE);
+	g_io_channel_set_buffer_size(client_channel,0);
 	
-	req  = http_request_new( conn, fd );
+	s  = ssl_connection_new(client_channel,ssl_connections_secuence_numbers + 1);	// s[0xYYY] is a local variable that is asigned the value
+																					// returned from ssl_connection new (0x001) that is the address
+																					// where stand the ssl_connection.
 	
-	if (req != NULL){
+	if (s != NULL){
 		
-		g_debug("handle_accept_ssl: capturada la conexion con fd = %d, desde el host %s:%d al host %s", fd,req->peer_ip,req->peer_port,req->ssl_remote_ip); 
-		req->is_ssl = TRUE;
-		req->source_id = g_io_add_watch(req->sock, G_IO_IN,(GIOFunc)handle_read_ssl, req);
+		g_debug("handle_accept_ssl: s = %u, capturada conexión desde el host %s:%d al host %s",\
+					s->secuence_number,s->peer_ip,s->peer_port,s->remote_ip);
+					
+		ssl_connections_secuence_numbers++;
+
+		s->arreglo_source_ids[0] = g_io_add_watch_full(client_channel,G_PRIORITY_DEFAULT,(GIOCondition)(G_IO_IN|G_IO_ERR|G_IO_HUP),\
+								(GIOFunc)handle_client_ssl,s,(GDestroyNotify)destroy_ssl_conn);
+		s->ref_count++;
+		g_debug("handle_accept_ssl: s = %u, ref_count = %u, adding handle_client_ssl",s->secuence_number,s->ref_count);
+		
+		s->arreglo_source_ids[5] = g_timeout_add_full(G_PRIORITY_DEFAULT,50,(GSourceFunc)timer_output_client_channel,\
+								s,(GDestroyNotify)destroy_ssl_conn);
+		s->ref_count++;
+		g_debug("handle_accept_ssl: s = %u, ref_count = %u, adding timer_output_client_channel",s->secuence_number,s->ref_count);
 	}
 	else {
 		
-		g_io_channel_shutdown(conn,FALSE,NULL);
-		g_io_channel_unref(conn);
+		g_io_channel_shutdown(client_channel,FALSE,NULL);
+		g_io_channel_unref(client_channel);
 		
 	}
-
-	//g_debug ("handle_accept_ssl: leaving..");
+	
 	return TRUE;
 }
 
-gboolean handle_accept_openssl( GIOChannel* sock, GIOCondition cond,  void* dummy ) {
+gboolean handle_accept_openssl( GIOChannel* channel, GIOCondition cond,  void* dummy ) {
 
 	GIOChannel* conn;
 	int fd,n;
 	pid_t mypid;
 	GError* gerror = NULL;
 
-	g_debug ("handle_accept_openssl: entering on socket # = %d", g_io_channel_unix_get_fd (sock));
-	fd = accept( g_io_channel_unix_get_fd(sock), NULL, NULL );
+	g_debug ("handle_accept_openssl: entering on socket # = %d", g_io_channel_unix_get_fd (channel));
+	fd = accept( g_io_channel_unix_get_fd(channel), NULL, NULL );
 
 	n = fcntl( fd, F_GETFL, 0 );
     fcntl( fd, F_SETFL, n | O_NONBLOCK);
@@ -511,12 +463,13 @@ gboolean handle_accept_openssl( GIOChannel* sock, GIOCondition cond,  void* dumm
 	g_io_channel_set_close_on_unref(conn,TRUE);
 	g_io_channel_set_buffer_size(conn,0);
 	
-	g_io_add_watch(conn, G_IO_IN,(GIOFunc)handle_read_openssl,NULL);
+	g_io_add_watch(conn,G_IO_IN,(GIOFunc)handle_read_openssl,NULL);
 
 	//g_debug ("handle_accept_ssl: leaving..");
 	return TRUE;
 }
 
+/******************************************************************************************/
 /******************************************************************************************/
 /******************************************************************************************/
 
@@ -561,7 +514,7 @@ gboolean check_exit_signal( GMainLoop *loop ) {
     
     if (exit_signal) {
 		
-		g_message("check_exit_signal: Caught exit signal %d!", exit_signal );
+		g_message("check_exit_signal: Caught exit signal %d!", exit_signal);
 		if (pid_file != NULL) {
 		    unlink( NC_PID_FILE );
 		    fclose( pid_file );
@@ -585,10 +538,21 @@ void signal_handler( int sig ) {
 	case SIGHUP:
 	    /*log_message(LOG_FILE,"hangup signal caught");*/
 	    break;
-	case SIGURG:
+	/*case SIGURG:
 		g_message("signal_handler: out of band data arrived");
+		break;*/
+	case SIGSEGV:
+		//longjmp(state,1);
+		g_message("signal_handler: SIGSEGV signal caught");
+		exit(0);
+		break;
+	case SIGBUS:
+		//longjmp(state,2);
+		g_message("signal_handler: SIGBUS signal caught");
+		exit(0);
 		break;
     }
+    return;
 }
 
 void daemonize(void) {
@@ -632,7 +596,7 @@ void daemonize(void) {
 	}
 	umask(027); /* set newly created file permissions */
 
-	chdir( NC_STATE_DIR );
+	chdir(NC_STATE_DIR);
 	
 	//chdir("/var");
 
@@ -666,7 +630,9 @@ void daemonize(void) {
 	signal(SIGHUP,  signal_handler); /* catch hangup signal */
 	signal(SIGTERM, signal_handler); /* catch kill signal */
 	signal(SIGINT,  signal_handler);
-	signal(SIGURG,  signal_handler);
+	signal(SIGSEGV,  signal_handler);
+	signal(SIGBUS,  signal_handler);
+	//signal(SIGURG,  signal_handler);
 }
 
 void g_syslog (const gchar* log_domain, GLogLevelFlags log_level, 
@@ -958,7 +924,6 @@ static int nfq_ssl_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,struc
 	unsigned char *payload;
 	struct nfq_iphdr* ip_header;
 	struct nfq_tcphdr* tcp_header;
-	gchar ip_dest[16];
 	gchar ip_source[16];
 	char* hw = NULL;
 	
@@ -972,6 +937,7 @@ static int nfq_ssl_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,struc
 	
 	hw = peer_arp_dns(ip_source);
 	
+	gchar* ip_dest = g_new0(gchar,16);
 	inet_ntop(AF_INET, &ip_header->daddr, ip_dest,16);
 	
 	//g_debug("nfq_ssl_callback: captured ip package from %s to %s",ip_source,ip_dest);
@@ -1119,39 +1085,59 @@ static int nfq_http_input_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfms
 	return 0;
 }
 
-gboolean handle_http( GIOChannel *sock, GIOCondition cond, void* dummy  ){
+gboolean handle_queue( GIOChannel *channel, GIOCondition cond, struct nfq_handle* queue_handle){
 	
 	char buf[4096] __attribute__ ((aligned));
 	int r;
 		 
-	r = recv(g_io_channel_unix_get_fd (sock), buf, sizeof(buf) , 0);
+	r = recv(g_io_channel_unix_get_fd (channel), buf, sizeof(buf) , 0);
 	//g_debug("handle_http: datos recibidos = %d",r); 
-	nfq_handle_packet(http_queue_handle, buf, r);
+	nfq_handle_packet(queue_handle, buf, r);
 	
 	return TRUE;	
 }
 
-gboolean handle_http_input( GIOChannel *sock, GIOCondition cond, void* dummy  ){
+int initialize_queue(unsigned int queue_number,int (*nfq_callback)(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,struct nfq_data *nfad, void *data)){
 	
-	char buf[4096] __attribute__ ((aligned));
-	int r;
-		 
-	r = recv(g_io_channel_unix_get_fd (sock), buf, sizeof(buf) , 0);
-	nfq_handle_packet(http_input_queue_handle, buf, r);
+	struct nfq_handle* queue_handle;
+	struct nfq_q_handle* q_queue_handle;
+	GIOChannel *channel;
 	
-	return TRUE;	
+	queue_handle = nfq_open();
+	if (!queue_handle) {
+		g_error("initialize_queue: error during nfq_open() for queue number = %d",queue_number);
+		return -1;
+	}
+	if (nfq_unbind_pf(queue_handle, AF_INET) < 0) {
+		g_error("initialize_queue: error during nfq_unbind_pf() for queue number = %d",queue_number);
+		return -1;
+	}
+	if (nfq_bind_pf(queue_handle, AF_INET) < 0) {
+		g_error("initialize_queue: error during nfq_bind_pf() for queue number = %d",queue_number);
+		return -1;
+	}
+	q_queue_handle = nfq_create_queue(queue_handle, queue_number, nfq_callback, NULL);
+	if (!q_queue_handle) {
+		g_error("initialize_queue: error during nfq_create_queue() for queue number = %d",queue_number);
+		return -1;
+	}
+	if (nfq_set_mode(q_queue_handle, NFQNL_COPY_PACKET, 0xffff) < 0) {
+		g_error("initialize_queue: can't set packet_copy mode for queue number = %d",queue_number);
+		return -1;
+	}
+	
+	channel = g_io_channel_unix_new(nfq_fd(queue_handle));
+	g_io_channel_set_encoding(channel,NULL,NULL);
+	
+	g_io_add_watch(channel, G_IO_IN, (GIOFunc) handle_queue, queue_handle);
+	
+	return 0;
 }
 
-gboolean handle_ssl_queue( GIOChannel *sock, GIOCondition cond, void* dummy  ){
+void destroy_str(gchar* str){
 	
-	char buf[4096] __attribute__ ((aligned));
-	int r;
-		 
-	r = recv(g_io_channel_unix_get_fd (sock), buf, sizeof(buf) , 0);
-	//g_debug("handle_http: datos recibidos = %d",r); 
-	nfq_handle_packet(ssl_queue_handle, buf, r);
-	
-	return TRUE;	
+	g_free(str);
+	return;
 }
 
 /************* main ************/
@@ -1159,7 +1145,7 @@ gboolean handle_ssl_queue( GIOChannel *sock, GIOCondition cond, void* dummy  ){
 int main(int argc, char** argv)
 {
 	GMainLoop  *loop;
-	GIOChannel *sock, *sock_ssl, *sock_openssl, *sock6, *sock_http, *sock_http_input,*sock_ssl_queue;
+	GIOChannel *channel, *channel_ssl, *channel_openssl, *channel6;
 	int ret;
 
 	/* read sicat.conf */
@@ -1182,87 +1168,11 @@ int main(int argc, char** argv)
 	/* set network parameters */
 	set_network_defaults(nocat_conf);
 
-/***************************** Initialize the http output queue *******************************************/
-
-	http_queue_handle = nfq_open();
-	if (!http_queue_handle) {
-		g_error("error during nfq_open() for http_output_handle");
-	}
-	if (nfq_unbind_pf(http_queue_handle, AF_INET) < 0) {
-		g_error("error during nfq_unbind_pf() for http_output_handle");
-	}
-	if (nfq_bind_pf(http_queue_handle, AF_INET) < 0) {
-		g_error("error during nfq_bind_pf() for http_output_handle");
-	}
-	http_q_queue_handle = nfq_create_queue(http_queue_handle, 0, &nfq_http_callback, NULL);
-	if (!http_q_queue_handle) {
-		g_error("error during nfq_create_queue() for http_output_handle");
-	}
-	if (nfq_set_mode(http_q_queue_handle, NFQNL_COPY_PACKET, 0xffff) < 0) {
-		g_error("can't set packet_copy mode for http_output_handle");
-	}
+	/* initialize the NFQUEUE interfaces to send ip packets to user space from iptables */
 	
-	sock_http = g_io_channel_unix_new(nfq_fd(http_queue_handle));
-	g_io_channel_set_encoding(sock_http,NULL,NULL);
-	
-	g_io_add_watch(sock_http, G_IO_IN, (GIOFunc) handle_http,NULL);
-
-/***********************************************************************************************************/
-
-/***************************** Initialize the ssl output queue *******************************************/
-
-	ssl_queue_handle = nfq_open();
-	if (!ssl_queue_handle) {
-		g_error("error during nfq_open() for ssl_queue_handle");
-	}
-	if (nfq_unbind_pf(ssl_queue_handle, AF_INET) < 0) {
-		g_error("error during nfq_unbind_pf() for ssl_queue_handle");
-	}
-	if (nfq_bind_pf(ssl_queue_handle, AF_INET) < 0) {
-		g_error("error during nfq_bind_pf() for ssl_queue_handle");
-	}
-	ssl_q_queue_handle = nfq_create_queue(ssl_queue_handle, 2, &nfq_ssl_callback, NULL);
-	if (!ssl_q_queue_handle) {
-		g_error("error during nfq_create_queue() for ssl_q_queue_handle");
-	}
-	if (nfq_set_mode(ssl_q_queue_handle, NFQNL_COPY_PACKET, 0xffff) < 0) {
-		g_error("can't set packet_copy mode for ssl_q_queue_handle");
-	}
-	
-	sock_ssl_queue = g_io_channel_unix_new(nfq_fd(ssl_queue_handle));
-	g_io_channel_set_encoding(sock_ssl_queue,NULL,NULL);
-	
-	g_io_add_watch(sock_ssl_queue, G_IO_IN, (GIOFunc) handle_ssl_queue,NULL);
-
-/***********************************************************************************************************/
-
-/***************************** Initialize the http input queue *******************************************/
-
-	http_input_queue_handle = nfq_open();
-	if (!http_input_queue_handle) {
-		g_error("error during nfq_open() for http_input_handle");
-	}
-	if (nfq_unbind_pf(http_input_queue_handle, AF_INET) < 0) {
-		g_error("error during nfq_unbind_pf() for http_input_handle");
-	}
-	if (nfq_bind_pf(http_input_queue_handle, AF_INET) < 0) {
-		g_error("error during nfq_bind_pf() for http_input_handle");
-	}
-	http_input_q_queue_handle = nfq_create_queue(http_input_queue_handle, 1, &nfq_http_input_callback, NULL);
-	if (!http_input_q_queue_handle) {
-		g_error("error during nfq_create_queue() for http_input_handle");
-	}
-	if (nfq_set_mode(http_input_q_queue_handle, NFQNL_COPY_PACKET, 0xffff) < 0) {
-		g_error("can't set packet_copy mode for intput handle");
-	}
-	
-	sock_http_input = g_io_channel_unix_new(nfq_fd(http_input_queue_handle));
-	g_io_channel_set_encoding(sock_http_input,NULL,NULL);
-	
-	g_io_add_watch(sock_http_input, G_IO_IN, (GIOFunc)handle_http_input,NULL);
-
-/***********************************************************************************************************/
-
+	if (initialize_queue(0,nfq_http_callback) == -1) return -1;
+	if (initialize_queue(1,nfq_http_input_callback) == -1) return -1;
+	if (initialize_queue(2,nfq_ssl_callback) == -1) return -1;
 
 	/* initialize the firewall */
 	
@@ -1278,17 +1188,19 @@ int main(int argc, char** argv)
 	peer_tab = g_hash_new();
 	
 	/* initialize openSSL */
-	ssl_connected_tab = g_hash_new();
+	ssl_connected_tab = g_hash_table_new_full(g_str_hash,g_str_equal,(GDestroyNotify)destroy_str,NULL);
 	ssl_certificates_tab = g_hash_new();
 	
 	if (initialize_openSSL() == -1) return -1;
+	
+	ssl_connections_secuence_numbers = 0;
 
 	/* initialize the listen socket */
-	sock = http_bind_socket( CONF("GatewayAddr"), CONFd("GatewayPort"), CONFd("ListenQueue"));
-	sock_ssl = http_bind_socket( CONF("GatewayAddr"), CONFd("SSL_GatewayPort"), CONFd("ListenQueue"));
-	sock_openssl = http_bind_socket( "127.0.0.1", 5282, CONFd("ListenQueue"));
+	channel = http_bind_socket( CONF("GatewayAddr"), CONFd("GatewayPort"), CONFd("ListenQueue"));
+	channel_ssl = http_bind_socket( CONF("GatewayAddr"), CONFd("SSL_GatewayPort"), CONFd("ListenQueue"));
+	channel_openssl = http_bind_socket( "127.0.0.1", 5282, CONFd("ListenQueue"));
 	
-	if (CONFd("IPv6")) sock6 = http_bind_socket6( "in6addr_any", CONFd("GatewayPort"), CONFd("ListenQueue"));
+	if (CONFd("IPv6")) channel6 = http_bind_socket6( "in6addr_any", CONFd("GatewayPort"), CONFd("ListenQueue"));
 
 	/* create and initialize the websocket comunication interface */
 	
@@ -1309,10 +1221,10 @@ int main(int argc, char** argv)
 	/* initialize the main loop and handlers */
 	loop = g_main_loop_new(NULL,FALSE);
 
-	g_io_add_watch( sock, G_IO_IN, (GIOFunc) handle_accept,NULL);
-	g_io_add_watch( sock_ssl, G_IO_IN, (GIOFunc) handle_accept_ssl,NULL);
-	g_io_add_watch( sock_openssl, G_IO_IN, (GIOFunc) handle_accept_openssl,NULL);
-	if (CONFd("IPv6")) g_io_add_watch( sock6, G_IO_IN, (GIOFunc) handle_accept6,NULL);
+	g_io_add_watch( channel, G_IO_IN, (GIOFunc) handle_accept,NULL);
+	g_io_add_watch( channel_ssl, G_IO_IN, (GIOFunc) handle_accept_ssl,NULL);
+	g_io_add_watch( channel_openssl, G_IO_IN, (GIOFunc) handle_accept_openssl,NULL);
+	if (CONFd("IPv6")) g_io_add_watch( channel6, G_IO_IN, (GIOFunc) handle_accept6,NULL);
 	
 	table = g_new0(gchar,10);
 	strcpy(table,"0");
