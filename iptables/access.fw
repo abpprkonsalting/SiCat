@@ -42,10 +42,11 @@ else
 fi
 
 # Mark inbound traffic in this node.
-iptables -t mangle $cmd NoCat$table -m mac --mac-source $mac -s $ip -m time --timestart $start --timestop $end --kerneltz -j MARK --set-mark $mark
+iptables -t mangle $cmd SiCat$table -m mac --mac-source $mac -s $ip -m time --timestart $start --timestop $end --kerneltz -j MARK --set-mark $mark
+iptables -t mangle $cmd SiCat$table -m mac --mac-source $mac -s $ip -m time --timestart $start --timestop $end --kerneltz -j RETURN
 
 # Mark outbound traffic from this node.
-iptables -t filter $cmd NoCat_Inbound$table -d $ip -m time --timestart $start --timestop $end --kerneltz -j ACCEPT
+iptables -t filter $cmd SiCat_Inbound$table -d $ip -m time --timestart $start --timestop $end --kerneltz -j ACCEPT
 
 #
 # Ende
