@@ -17,7 +17,7 @@ gboolean finish_punishment(peer* p){
 	
 	g_debug("quitando el castigo al peer %s", p->hw);
 	p->status = 0;
-	g_debug("castigo quitado");
+	
 	return FALSE;
 }
 
@@ -30,7 +30,7 @@ gboolean check_peer_grace_finish(gchar* p_hw){
     if (p != NULL){	// Esto significa que el peer a'un no se ha autenticado en el sistema, pues de haberlo hecho se hubiera
 					// quitado de la hashtable de peers en firewall.cc -> peer_permit
 		
-		g_debug("punishing peer %s", p->hw);
+		g_debug("castigando al peer %s", p->hw);
 		p->status = 1;
 		p->punish_time = time(NULL);
 		g_timeout_add(CONFd("LoginPunish")*1000,(GSourceFunc) finish_punishment,p);
@@ -117,7 +117,7 @@ int handle_request( http_request *h ) {
 				// Aqu'i se captur'o una solicitud atrasada a datalnet despue's de un castigo, por lo tanto se
 				// redirecciona nuevamente al principio.
 				
-				//g_debug("handle_request: capturada una solicitud atrasada");
+				g_debug("handle_request: capturada una solicitud atrasada");
 				
 				t = g_strdup(h->buffer->str);
 				t1 = g_strstr_len(t,-1,"&redirect=");
@@ -184,7 +184,7 @@ int handle_request( http_request *h ) {
 				// el POST a datalnet, lo que no puede ser, por lo tanto se le env'ia para el principio con la direcci'on original que quer'ia
 				// abrir.
 				
-				//g_debug("handle_request: capturada una solicitud atrasada");
+				g_debug("handle_request: capturada una solicitud atrasada");
 				
 				t = g_strdup(h->buffer->str);
 				t1 = g_strstr_len(t,-1,"&redirect=");

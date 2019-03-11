@@ -56,7 +56,7 @@ gboolean redirecciona_delayed (fw_action *act ){
 	
 	http_send_redirect(act->h, dest->str,act->p);
 	
-	g_debug("enviado el redirect");
+	//g_debug("redirecciona_delayed: enviado el redirect");
 
 	g_string_free( dest, 1 );
 	g_hash_free( args );
@@ -153,11 +153,11 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
     	
     	if (gerror != NULL) {
 				
-			g_warning("fw_perform: g_spawn_async failure, return error: %s",gerror->message);
+			g_message("fw_perform: g_spawn_async failure, return error: %s",gerror->message);
 		}
 		else {
 			
-			g_warning("fw_perform: g_spawn_async failure, unknown return error");
+			g_message("fw_perform: g_spawn_async failure, unknown return error");
 		}
 		resultado = 1;
     }

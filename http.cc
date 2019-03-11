@@ -147,7 +147,7 @@ void peer_arp_h( http_request *h ) {
 
     arp = fopen( "/proc/net/arp", "r" );
     if ( arp == NULL ){
-    	g_warning( "Can't open /proc/net/arp: %m" );
+    	g_message( "Can't open /proc/net/arp: %m" );
     	return;
     }
    
@@ -178,7 +178,7 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
 	h->source_id = 0;
     r = getsockname( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
     if (r == -1) { 
-    	g_warning( "http_request_new: getsockname failed: %m" );
+    	g_message( "http_request_new: getsockname failed: %m" );
     	http_request_free (h);
     	return NULL;
     }
@@ -186,7 +186,7 @@ http_request* http_request_new ( GIOChannel* sock,int fd ) {
 
     r = getpeername( fd, (struct sockaddr *)&addr, (socklen_t*)&n );
     if (r == -1){
-    	g_warning( "http_request_new: getpeername failed: %m" );
+    	g_message( "http_request_new: getpeername failed: %m" );
     	http_request_free (h);
     	return NULL;
     }
@@ -532,13 +532,13 @@ int http_open_file (const gchar *path, int *status) {
     fd = open( path, O_RDONLY );
     if (fd == -1) {
 	if (errno == ENOENT) {
-	    g_warning("http_open_file: File not found: %s", path);
+	    g_message("http_open_file: File not found: %s", path);
 	    *status = 404;
 	} else if (errno == EACCES) {
-	    g_warning("http_open_file: Access not permitted: %s", path);
+	    g_message("http_open_file: Access not permitted: %s", path);
 	    *status = 400;
 	} else {
-	    g_warning("http_open_file: Error accessing %s: %m", path);
+	    g_message("http_open_file: Error accessing %s: %m", path);
 	    *status = 500;
 	}
 	return -1;
@@ -620,8 +620,7 @@ GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 )
 
     if ( r != G_IO_ERROR_NONE ) {
     	
-    	if (*(h->peer_ip) != 0)	g_warning( "http_serve_template: Serving template to %s failed: %m", h->peer_ip );
-    	else g_warning( "http_serve_template: Serving template to %s failed: %m", h->peer_ip6 );
+    	g_message( "http_serve_template: Serving template to %s failed: %m", h->peer_ip );
     }
 
     return r;
@@ -654,7 +653,7 @@ guint http_request_read (http_request *h) {
 		
 		if (gerror != NULL) {
 				
-			g_warning("http_request_read: g_io_channel_read_chars return error: %s",gerror->message);
+			g_message("http_request_read: g_io_channel_read_chars return error: %s",gerror->message);
 			g_free(buf);
 			return 2;
 		}
@@ -715,14 +714,14 @@ guint http_request_read (http_request *h) {
 					}
 					else if ((long int)((strlen(h->buffer->str) - ((header_end + 4) - h->buffer->str))) > c_len){
 						
-						g_warning("http_request_read: Data arrived mitmatch Header Content-length, discarting http request");
+						g_message("http_request_read: Data arrived mitmatch Header Content-length, discarting http request");
 						return 2;
 											
 					}
 				}
 				else if (c_len < 0) {
 					
-					g_warning("http_request_read: Header Content-length negative or corrupt, discarting http request");
+					g_message("http_request_read: Header Content-length negative or corrupt, discarting http request");
 					return 2;
 				}
 			}

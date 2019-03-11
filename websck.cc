@@ -32,7 +32,7 @@ void dns_callback (GObject *source_object,GAsyncResult *res,gpointer user_data){
 	
 	if (gerror != NULL) {
 				
-		g_warning("dns_callback: g_resolver_lookup_by_name_finish error: %s",gerror->message);
+		g_message("dns_callback: g_resolver_lookup_by_name_finish error: %s",gerror->message);
 		wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
 		return;
 	}
@@ -45,12 +45,12 @@ void dns_callback (GObject *source_object,GAsyncResult *res,gpointer user_data){
 		x = wsk_comm_interface->wsk_create();
 		if (x == -1){
 				
-			g_warning("dns_callback: websocket initialization error, retrying...");
+			g_message("dns_callback: websocket initialization error, retrying...");
 			wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
 		}
 	}
 	else {
-		g_warning("dns_callback: g_resolver_lookup_by_name_finish error ..");
+		g_message("dns_callback: g_resolver_lookup_by_name_finish error ..");
 		wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
 	}
 }
@@ -62,7 +62,7 @@ int callback_authentication(struct libwebsocket_context* thi, struct libwebsocke
 		
 		case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
 			
-			g_warning("wsk callback_authentication: LWS_CALLBACK_CLIENT_CONNECTION_ERROR");
+			g_message("wsk callback_authentication: LWS_CALLBACK_CLIENT_CONNECTION_ERROR");
 			
 			wsk_comm_interface->wsk_set_status(WSK_ERROR,"callback_authentication");
 			
@@ -249,7 +249,7 @@ gboolean call_libwebsocket_service(void* dummy){
 			
 		case WSK_CLIENT_ESTABLISHED:
 		
-			if ((g_hash_table_size(peer_tab) == 0) && 
+			/*if ((g_hash_table_size(peer_tab) == 0) && 
 				(wsk_comm_interface->sender_queu->get_count() == 0)){
 			
 				if (difftime(time(NULL),wsk_comm_interface->get_last_access_time())
@@ -260,19 +260,20 @@ gboolean call_libwebsocket_service(void* dummy){
 														wsk_comm_interface->get_wsi());
 				}
 			}
-			else wsk_comm_interface->set_last_access_time();
+			else*/ 
+			wsk_comm_interface->set_last_access_time();
 			break;
 			
 		case WSK_DISCONNECTED:
 		
-			if (!(wsk_comm_interface->is_init())){
+			/*if (!(wsk_comm_interface->is_init())){
 				
 				if (difftime(time(NULL),wsk_comm_interface->get_last_access_time())
 				 < wsk_comm_interface->get_wsk_keep_alive()) {
 					
 					return TRUE;	
 				}
-			}
+			}*/
 			
 			wsk_comm_interface->wsk_initialize();
 			
@@ -1111,8 +1112,7 @@ comm_interface::comm_interface(){
 	lws_set_log_level(CONFd("wsk_log_level"), lwsl_emit_syslog);
 	
 	context = NULL;
-	wsk_time_out = CONFd("wsk_time_out");
-	wsk_keep_alive = CONFd("wsk_keep_alive");
+
 	
 	wsi = NULL;
 	
@@ -1160,16 +1160,6 @@ struct libwebsocket_context* comm_interface::get_context(){
 time_t comm_interface::get_last_access_time(){
 	
 	return wsk_last_access_time;
-}
-
-time_t comm_interface::get_wsk_time_out(){
-	
-	return wsk_time_out;
-}
-
-time_t comm_interface::get_wsk_keep_alive(){
-	
-	return wsk_keep_alive;
 }
 
 void comm_interface::set_last_access_time(){
@@ -1379,7 +1369,7 @@ int comm_interface::wsk_initialize(){
 				// Aquí debo avisar a la administración del sistema de que ha habido un probrema en el
 				// establecimiento del wsk.
 
-				g_warning("comm_interface::wsk_initialize: websocket initialization error, retrying...");
+				g_message("comm_interface::wsk_initialize: websocket initialization error, retrying...");
 				
 				return -1;
 			}
@@ -1405,7 +1395,7 @@ int comm_interface::wsk_create(){
 
 		if (context == NULL) {
 
-			g_warning("comm_interface::wsk_create: Could not create the websocket context, exiting..");
+			g_message("comm_interface::wsk_create: Could not create the websocket context, exiting..");
 			return -1;
 		}
 		
@@ -1414,7 +1404,7 @@ int comm_interface::wsk_create(){
 		if (wsi == NULL) {
 
 			libwebsocket_context_destroy (context);
-			g_warning("comm_interface::wsk_create: libwebsocket client connect failed...");
+			g_message("comm_interface::wsk_create: libwebsocket client connect failed...");
 			return -1;
 		}
 		else {

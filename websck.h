@@ -136,9 +136,7 @@ class comm_interface {
 	struct libwebsocket* wsi;
 	bool init;
 	
-	time_t wsk_time_out;
 	time_t wsk_last_access_time;
-	time_t wsk_keep_alive;
 	
 	enum STATUSES wsk_status;
 	
@@ -163,8 +161,7 @@ class comm_interface {
 	struct libwebsocket* get_wsi();
 	time_t get_last_access_time();
 	void set_last_access_time();
-	time_t get_wsk_time_out();
-	time_t get_wsk_keep_alive();
+
 
 	void wsk_set_status(enum STATUSES status,const char* function);
 	enum STATUSES get_status();

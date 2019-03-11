@@ -188,7 +188,7 @@ gchar *load_file( const char *path ) {
 
     fd = open( path, O_RDONLY );
     if ( fd == -1 ) {
-		g_warning( "load_file: Can't open %s: %m", path );
+		g_message( "load_file: Can't open %s: %m", path );
 		return NULL;
     }
 
@@ -254,7 +254,7 @@ gchar *parse_template( gchar *src, GHashTable *data1 ) {
     	
     	memcpy(val,dest->str,strlen(dest->str));
 	}
-	else g_message ("parse_template: could not allocate space for return value");
+	else g_message("parse_template: could not allocate space for return value");
     
     g_string_free( dest, FALSE );
     return val;

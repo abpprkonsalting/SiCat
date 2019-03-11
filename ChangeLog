@@ -1,6 +1,10 @@
 Changelog
 ---------
 
+2014-11-01:
+
+Lot of fixes. First version for production.
+
 2014-10-05:
 
 Going back to previous approach of grace / punishment periods. Yet keeping the use of iptables queue handdling in user space to make decisions (not DNS, this has been removed)

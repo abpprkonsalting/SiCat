@@ -10,20 +10,17 @@ struct conf_t default_conf[] = {
     { (gchar*)"GatewayPort",	(gchar*)"5280" },
     { (gchar*)"ListenQueue",	(gchar*)"20" },
 
-    /*This is now all auto-detected in set_conf_defaults()
+    /*This is now all auto-detected in set_network_defaults()
     //{ (gchar*)"ExternalDevice",	(gchar*)"0" },
     //{ (gchar*)"InternalDevice",	(gchar*)"0" },
     //{ (gchar*)"LocalNetwork",	(gchar*)"0" },*/
 
     { (gchar*)"FirewallPath",	(gchar*)NC_FIREWALL_PATH },
     { (gchar*)"ResetCmd",	(gchar*)"$FirewallPath/initialize.fw" },
-    { (gchar*)"ResetCmd6",	(gchar*)"$FirewallPath/initialize6.fw" },
     { (gchar*)"PermitCmd",	(gchar*)"$FirewallPath/access.fw permit $MAC $IP $Class $Start $End $Table" },
     { (gchar*)"Permit_t",	(gchar*)"$FirewallPath/access_t.fw permit $MAC $IP $Class $Start $End $Table" },
     { (gchar*)"DenyCmd",	(gchar*)"$FirewallPath/access.fw deny $MAC $IP $Class" },
     { (gchar*)"InitCmd",	(gchar*)"$FirewallPath/cleartable.fw $Table" },
-    { (gchar*)"PermitCmd6",	(gchar*)"$FirewallPath/access6.fw permit $MAC $IP $Class" },
-    { (gchar*)"DenyCmd6",	(gchar*)"$FirewallPath/access6.fw deny $MAC $IP $Class" },
 
     { (gchar*)"AuthServiceAddr", (gchar*)"www.datalnet.com" },
     { (gchar*)"AuthServiceURL", (gchar*)"http://www.datalnet.com/SocialNetwork" },
@@ -33,7 +30,8 @@ struct conf_t default_conf[] = {
     { (gchar*)"LoginTimeout",	 (gchar*)"1200" },
     { (gchar*)"LoginGrace",	 (gchar*)"180" },
     { (gchar*)"LoginPunish",	 (gchar*)"300" },
-    //{ (gchar*)"AllowPunishment",	 (gchar*)"0" },
+    //{ (gchar*)"InitMode",	 (gchar*)"1" },
+    //{ (gchar*)"AllowLocalNetworkConfig",	(gchar*)"1" },
 
     //  Where to look for form templates?
     { (gchar*)"DocumentRoot",	 (gchar*)NC_DOCUMENT_ROOT },
@@ -53,15 +51,13 @@ struct conf_t default_conf[] = {
 	// Websocket defaults
 	{ (gchar*)"wsk_server_address",	(gchar*)"www.datalnet.com"},
 	{ (gchar*)"wsk_server_port",	(gchar*)"80"},
-	{ (gchar*)"wsk_path_on_server",	(gchar*)"/api/ServiceLine"},
+	{ (gchar*)"wsk_path_on_server",	(gchar*)"/api/ServiceLine/SetupWebSocket"},
 	{ (gchar*)"wsk_server_hostname",	(gchar*)"www.datalnet.com"},
 	{ (gchar*)"wsk_origin_name",	(gchar*)"localhost"},
 	{ (gchar*)"wsk_protocol",	(gchar*)"0"},
 	{ (gchar*)"wsk_iface",	(gchar*)"NULL"},
 	{ (gchar*)"wsk_use_ssl",	(gchar*)"0"},
 	{ (gchar*)"ietf_version",	(gchar*)"-1"},
-	{ (gchar*)"wsk_time_out",	(gchar*)"600"},
-	{ (gchar*)"wsk_keep_alive",	(gchar*)"3600"},
 	{ (gchar*)"wsk_log_level", (gchar*)"1"},
 	{ (gchar*)"usewsk", (gchar*)"1"},
 

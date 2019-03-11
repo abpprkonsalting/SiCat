@@ -60,7 +60,7 @@ gboolean change_table( void *dummy ) {
 /************* Read Input Data Connection handle *******/
 gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 	
-	//g_debug("handle_read: reading request fd = %d",g_io_channel_unix_get_fd (h->sock));
+	g_debug("handle_read: reading request fd = %d",g_io_channel_unix_get_fd (h->sock));
 
 	guint r;
 	
@@ -83,7 +83,7 @@ gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 		return TRUE;
 	}
 	
-	//g_debug("handle_read: shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
+	g_debug("handle_read: shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
 
 	g_io_channel_shutdown(h->sock,TRUE,NULL);
 	g_io_channel_unref(h->sock );
@@ -218,7 +218,7 @@ gboolean check_exit_signal( GMainLoop *loop ) {
 	
 	if (memory_used > CONFd("memlimit")){
 		
-		g_message( "check_exit_signal: memory usage exceded, exiting");
+		g_message("check_exit_signal: memory usage exceded, exiting..");
 		fclose(log_fd);
 		g_main_quit( loop );
 		return TRUE;
@@ -226,7 +226,7 @@ gboolean check_exit_signal( GMainLoop *loop ) {
     
     if (exit_signal) {
 		
-		g_message( "check_exit_signal: Caught exit signal %d!", exit_signal );
+		g_message("check_exit_signal: Caught exit signal %d!", exit_signal );
 		if (pid_file != NULL) {
 		    unlink( NC_PID_FILE );
 		    fclose( pid_file );
@@ -265,7 +265,7 @@ void daemonize(void) {
 	r = fork();
 	if (r<0) 
 	{
-		g_message( "daemonize: fork error");
+		//g_message( "daemonize: fork error");
 		exit(1); /* fork error */
 	}
 	if (r>0)	//This is the return of fork for the parent process, the pid of the child
@@ -513,7 +513,7 @@ void peer_arp_dns(gchar* ip_add, gchar* hw_add) {
 
     arp = fopen( "/proc/net/arp", "r" );
     if ( arp == NULL ){
-    	g_warning( "Can't open /proc/net/arp: %m" );
+    	g_message( "Can't open /proc/net/arp: %m" );
     	return;
     }
    
@@ -564,7 +564,7 @@ static int nfq_http_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,stru
 		if ((p->status == 0) || (p->status == 2) || (p->status == 3)){	// Aqu'i el peer se est'a autentificando en cualquiera de los dos
 																		// statuses para eso (0 o 2) o est'a permitido ya (status == 3)
 			
-			//g_debug("el peer est'a en modo 0, 2 'o 3, se deja pasar el paquete ip..");
+			g_debug("el peer est'a en modo 0, 2 'o 3, se deja pasar el paquete ip..");
 			nfq_set_verdict2(qh, id, NF_ACCEPT, 3 ,0, NULL);
 			return 0;
 		}
@@ -575,13 +575,13 @@ static int nfq_http_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,stru
 								
 			if ( ntohs(tcp_header->dest) == 80 ) {
 				
-				//g_debug("nfq_http_callback: el peer est'a castigado, se deja pasar http para que se capture el cliente");
+				g_debug("nfq_http_callback: el peer est'a castigado, se deja pasar http para que se capture el cliente");
 				nfq_set_verdict(qh, id, NF_ACCEPT,0, NULL);
 				return 0;
 			}
 			else  {
 				
-				//g_debug("nfq_http_callback: el peer est'a castigado, no se deja pasar https");
+				g_debug("nfq_http_callback: el peer est'a castigado, no se deja pasar https");
 				nfq_set_verdict(qh, id, NF_DROP,0, NULL);
 				return 0;
 			}	
@@ -593,13 +593,13 @@ static int nfq_http_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,stru
 								
 		if ( ntohs(tcp_header->dest) == 80 ) {
 			
-			//g_debug("nfq_http_callback: el peer no existe, se deja pasar http para que se capture el cliente");
+			g_debug("nfq_http_callback: el peer no existe, se deja pasar http para que se capture el cliente");
 			nfq_set_verdict(qh, id, NF_ACCEPT,0, NULL);
 			return 0;
 		}
 		else {
 			
-			//g_debug("nfq_http_callback: el peer no existe, no se deja pasar https");
+			g_debug("nfq_http_callback: el peer no existe, no se deja pasar https");
 			nfq_set_verdict(qh, id, NF_DROP,0, NULL);
 			return 0;
 		}
@@ -634,7 +634,7 @@ static int nfq_http_input_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfms
 
 	inet_ntop(AF_INET, &ip_header->saddr, ip_source, 16);	
 	inet_ntop(AF_INET, &ip_header->daddr, ip_dest, 16);
-	//g_debug("nfq_http_input_callback: captured input ip package from %s to %s",ip_source,ip_dest);
+	g_debug("nfq_http_input_callback: captured input ip package from %s to %s",ip_source,ip_dest);
 
 	/*for (int i = 0; i < n; i++) {
 		g_debug(" 0x%1X ", payload[i] );
@@ -679,7 +679,7 @@ static int nfq_http_input_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfms
 	}
 	else {
 		
-		//g_debug("nfq_http_input_callback: el peer no existe, no se deja pasar nada");
+		g_debug("nfq_http_input_callback: el peer no existe, no se deja pasar nada");
 		nfq_set_verdict(qh, id, NF_DROP,0, NULL);
 		return 0;
 	}

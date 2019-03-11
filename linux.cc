@@ -24,13 +24,13 @@ ssize_t http_sendfile ( http_request *h, int in_fd ) {
 
     r = fstat( in_fd, &s );
     if (r == -1) {
-	g_warning("http_sendfile stat: %m");
+	g_message("http_sendfile stat: %m");
 	return -1;
     }
 
     r = sendfile( out_fd, in_fd, &len, s.st_size );
     if (r == -1) {
-	g_warning("http_sendfile send: %m");
+	g_message("http_sendfile send: %m");
 	return -1;
     }
 
@@ -44,7 +44,7 @@ gchar* peer_arp( peer *p ) {
     g_assert( p != NULL );
 
     arp = fopen( "/proc/net/arp", "r" );
-    if ( arp == NULL ){	g_warning( "Can't open /proc/net/arp: %m" );}
+    if ( arp == NULL ){	g_message( "Can't open /proc/net/arp: %m" );}
    
     fscanf(arp, "%*s %*s %*s %*s %*s %*s %*s %*s %*s"); // Skip first line 
     while (fscanf( arp, "%15s %*s %*s %17s %*s %*s\n", ip, hw ) != EOF)  {
@@ -68,14 +68,14 @@ gchar* get_mac_address (const gchar *dev) {
 
     s = socket( PF_INET, SOCK_DGRAM, 0 );
     if (s == -1) {
-		g_warning("get_mac_address socket: %m");
+		g_message("get_mac_address socket: %m");
 		g_free(dest);
 		return NULL;
     }
 
     r = ioctl( s, SIOCGIFHWADDR, &ifr );
     if (r == -1) {
-		g_warning("get_mac_address: SIOCGIFHWADDR: %m");
+		g_message("get_mac_address: SIOCGIFHWADDR: %m");
 		g_free(dest);
 		close(s);
 		return NULL;
@@ -103,7 +103,7 @@ gchar* get_network_address (const gchar *dev) {
 
     s = socket( PF_INET, SOCK_DGRAM, 0 );
     if (s == -1) {
-		g_warning("get_network_address socket: %m");
+		g_message("get_network_address socket: %m");
 		g_free(dest);
 		return NULL;
     }
@@ -111,7 +111,7 @@ gchar* get_network_address (const gchar *dev) {
     strncpy( ifaddr.ifr_name, dev, IFNAMSIZ );
     r = ioctl( s, SIOCGIFADDR, &ifaddr );
     if (r == -1) {
-		g_warning("get_network_address: SIOCGIFADDR: %m");
+		g_message("get_network_address: SIOCGIFADDR: %m");
 		g_free(dest);
 		close(s);
 		return NULL;
@@ -120,7 +120,7 @@ gchar* get_network_address (const gchar *dev) {
     strncpy( ifnetmask.ifr_name, dev, IFNAMSIZ );
     r = ioctl( s, SIOCGIFNETMASK, &ifnetmask );
     if (r == -1) {
-		g_warning("get_network_address: SIOCGIFNETMASK: %m");
+		g_message("get_network_address: SIOCGIFNETMASK: %m");
 		g_free(dest);
 		close(s);
 		return NULL;
