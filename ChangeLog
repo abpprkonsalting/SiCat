@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+2014-10-05:
+
+Going back to previous approach of grace / punishment periods. Yet keeping the use of iptables queue handdling in user space to make decisions (not DNS, this has been removed)
+Some other changes:
+
+- Added traffic counters to better determine the punishment to the client. The idea is that if the traffic is not from outside the authentication server urls then probably the
+delay is just because bad network conditions or the client not paying attention for whatever reason, so it makes no so much sense to punish.
+
 2014-10-02:
 
 Removing the grace and punishment periods. First "functional" testing version based in the new approach.

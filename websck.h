@@ -3,6 +3,7 @@
 # include <string.h>
 # include <time.h>
 # include <libwebsockets.h>
+#include <gio/gio.h>
 
 //# include "gateway.h"
 
@@ -21,8 +22,6 @@ enum STATUSES {
 };
 
 gboolean is_IP(gchar* name);
-
-void set_wsk_server_IP(struct sockaddr_in** addresses);
 
 void parse_status(int status, char* status_char);
 
@@ -145,6 +144,8 @@ class comm_interface {
 	
 	struct libwebsocket_protocols protocols[2];
 	
+	gchar* wsk_server_IP;
+	
 	void wsk_create_context(void);
 	void wsk_client_connect (void);
 	
@@ -153,7 +154,7 @@ class comm_interface {
 	class received_messages_queu* reception_queu;
 	class send_messages_queu* sender_queu;
 	
-	gchar* wsk_server_IP;
+	GResolver * myResolver;
 
 	comm_interface();
 	~comm_interface();
@@ -174,7 +175,7 @@ class comm_interface {
 	
 	int wsk_send_command(char* comando, struct params* parameters_in, struct data* datos_in);
 	int solve_dns(GHashTable *conf);
-	//void set_wsk_server_IP(struct sockaddr_in** addresses);
+	void set_wsk_server_IP(gchar* server_IP);
 	int wsk_initialize();
 	int wsk_create();
 	void wsk_restart();

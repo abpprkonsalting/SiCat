@@ -17,31 +17,19 @@
 
 # include "gateway.h"
 
-//#include <libnfnetlink/libnfnetlink.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 //#include <libnetfilter_queue/linux_nfnetlink_queue.h>
 #include <linux/netfilter.h>
-
-
-//usr/include/libnetfilter_queue/libnetfilter_queue.h
-//usr/include/libnetfilter_queue/
-//usr/include/libnetfilter_queue/libnetfilter_queue_ipv6.h
-//usr/include/libnetfilter_queue/libnetfilter_queue_tcp.h
-//usr/include/libnetfilter_queue/libnetfilter_queue_udp.h
-//usr/include/libnetfilter_queue/linux_nfnetlink_queue.h
-
 
 extern GHashTable* peer_tab;
 static int exit_signal = 0;
 static FILE* pid_file = NULL;
 gchar* macAddressFrom; 
 class comm_interface* wsk_comm_interface;
-class DNS_resolver* resolver;
 gchar* table;
 FILE * log_fd;
+gchar* datalnet_IP;
 struct hs_array_t* hs_array;
-
-class h_requests* requests;
 
 struct nfq_handle
 {
@@ -65,12 +53,84 @@ struct nfq_q_handle
  };
 
 struct nfq_handle* http_queue_handle;
-struct nfq_handle* output_queue_handle;
-struct nfq_handle* input_queue_handle;
-
 struct nfq_q_handle* http_q_queue_handle;
-struct nfq_q_handle* output_q_queue_handle;
-struct nfq_q_handle* input_q_queue_handle;
+
+struct nfq_handle* http_input_queue_handle;
+struct nfq_q_handle* http_input_q_queue_handle;
+
+struct nfq_iphdr
+{
+
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+
+	uint8_t ihl:4,
+	version:4;
+	
+#elif defined (__BIG_ENDIAN_BITFIELD)
+
+	uint8_t version:4,
+	ihl:4;
+
+#endif
+
+uint8_t tos;
+uint16_t tot_len;
+uint16_t id;
+uint16_t frag_off;
+uint8_t ttl;
+uint8_t protocol;
+uint16_t check;
+uint32_t saddr;
+uint32_t daddr;
+};
+
+struct nfq_tcphdr
+{
+uint16_t source;
+uint16_t dest;
+uint32_t seq;
+uint32_t ack_seq;
+
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+
+	uint16_t res1:4,
+	doff:4,
+	fin:1,
+	syn:1,
+	rst:1,
+	psh:1,
+	ack:1,
+	urg:1,
+	ece:1,
+	cwr:1;
+
+#elif defined(__BIG_ENDIAN_BITFIELD)
+
+	uint16_t doff:4,
+	res1:4,
+	cwr:1,
+	ece:1,
+	urg:1,
+	ack:1,
+	psh:1,
+	rst:1,
+	syn:1,
+	fin:1;
+
+#endif
+
+uint16_t window;
+uint16_t check;
+uint16_t urg_ptr;
+};
+
+struct nfq_udphdr
+{
+uint16_t source;
+uint16_t dest;
+uint16_t len;
+uint16_t check;
+};
 
 gboolean show_socket_pairs(gchar* function_name, http_request *h);
-void peer_arp_dns(gchar* ip_add, gchar* hw_add);
+FILE * initialize_log (void) ;

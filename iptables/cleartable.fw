@@ -7,5 +7,8 @@
 
 table=$1
 
-iptables -t filter -F NoCat_Inbound$table
-iptables -t mangle -F NoCat$table
+iptables -t filter -F SiCat_Inbound$table
+iptables -t mangle -F SiCat$table
+iptables -t filter -F SiCat_Inbound_p$table
+iptables -t mangle -F SiCat_p$table
+

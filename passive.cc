@@ -9,23 +9,18 @@
 # include "gateway.h"
 //# include "websck.h"
 
-//extern class h_requests* requests;
-extern class comm_interface* wsk_comm_interface;
+extern class h_requests* requests;
 extern GHashTable* peer_tab;
-extern gchar* macAddressFrom;
-extern class DNS_resolver* resolver;
-extern struct hs_array_t* hs_array;
 //gchar *splash_page = NULL;
 
 gboolean finish_punishment(peer* p){
 	
 	g_debug("quitando el castigo al peer %s", p->hw);
-	//p->status = 0;
+	p->status = 0;
 	g_debug("castigo quitado");
 	return FALSE;
 }
 
-/*
 gboolean check_peer_grace_finish(gchar* p_hw){
 	
 	peer* p; 
@@ -36,358 +31,225 @@ gboolean check_peer_grace_finish(gchar* p_hw){
 					// quitado de la hashtable de peers en firewall.cc -> peer_permit
 		
 		g_debug("punishing peer %s", p->hw);
-		//p->status = 1;
+		p->status = 1;
 		p->punish_time = time(NULL);
 		g_timeout_add(CONFd("LoginPunish")*1000,(GSourceFunc) finish_punishment,p);
 	}
 	g_free(p_hw);
 	return FALSE;
 }
-*/
 
-/*void peer_init_dns_callback (GObject *source_object,GAsyncResult *res,gpointer user_data){
+void capture_peer (http_request *h, peer *p) {
 	
-	GList *mylist;
-	GError* gerror = NULL;
-	
-	mylist = g_resolver_lookup_by_name_finish((GResolver *)source_object,res,&gerror);
-	
-	if (gerror != NULL) {
-				
-		g_warning("peer_init_dns_callback: g_resolver_lookup_by_name_finish error: %s",gerror->message);
+    gchar *dest, *orig = target_redirect(h);
+    gchar *redir = url_encode(orig);
 
-		return;
+	dest = g_strdup_printf( "http://%s:%s/?redirect=%s",h->sock_ip, CONF("GatewayPort"), redir );
+
+    http_send_redirect(h, dest, p);
+
+    g_free( orig  );
+    g_free( redir );
+    g_free( dest  );
+}
+
+void return_peer (http_request *h, peer *p, gchar *hostname) {
+	
+    gchar *dest;
+
+	dest = g_strdup_printf( "http://%s%s",hostname, h->uri_orig );
+
+    http_send_redirect(h, dest, p);
+    g_free( dest  );
+}
+
+gchar* arregla_redirect(gchar* t1){
+	
+	gchar *t3 = g_strstr_len(t1,-1,"%3A");
+	*t3 = ':';
+	t3++;
+	gchar *t4 = t3;
+	t4++;
+	t4++;
+	memmove(t3,t4,strlen(t4)+1);
+	
+	gchar *t5 = g_strstr_len(t3,-1,"%2F");
+	
+	while ( t5 != NULL) {
+		
+		*t5 = '/';
+		t5++;
+		t4 = t5;
+		t4++;
+		t4++;
+		memmove(t5,t4,strlen(t4)+1);
+		t5 = g_strstr_len(t5,-1,"%2F");
 	}
 	
-	if (mylist != NULL){
-		
-		// Aqu'i debo agregar las direcciones ip que vengan en la respuesta dns a la tabla de sitios del peer.
-		// Ahora no lo hago pues esto no es extrictamente necesario, pero m'as adelante ser'ia buena idea hacerlo.
-		
-		//(otro_struct*)(user_data)->solved_sites++;
-		otro_struct *res_data = (otro_struct*)user_data;
-		g_debug("lleg'o una respuesta dns del peer");
-		//res_data->solved_sites++;
-	}
-	else g_warning("peer_init_dns_callback: g_resolver_lookup_by_name_finish error ..");
-	return;
+	return t1;
+	
+}
+
+/*void logout_peer( http_request *h, peer *p ) {
+	
+    remove_peer( p );
+    http_send_redirect( h, CONF("LogoutURL"), NULL );
 }*/
-
-/*void peer_init_dns_callback (GObject *source_object,GAsyncResult *res,gpointer user_data){
-	
-	GList *mylist;
-	GError* gerror = NULL;
-	
-	mylist = g_resolver_lookup_by_name_finish((GResolver *)source_object,res,&gerror);
-	
-	if (gerror != NULL) {
-				
-		g_warning("peer_init_dns_callback: g_resolver_lookup_by_name_finish error: %s",gerror->message);
-
-		return;
-	}
-	
-	if (mylist != NULL){
-		
-		g_debug("lleg'o una respuesta dns del peer");
-		//res_data->solved_sites++;
-	}
-	else g_warning("peer_init_dns_callback: g_resolver_lookup_by_name_finish error ..");
-	return;
-}*/
-
-void refill_site_table(struct respuesta* resp,void* user_data){
-
-	/* A esta funci'on se le est'a entrando con una estructura respuesta que tiene tres campos:
-	
-	resp->pregunta :		Este es el nombre original del sitio sobre el cual se hizo la solicitud.
-	resp->ip_addresses :	Arreglo de direcciones ip que llegaron en la respuesta. Aqu'i no me interesan.
-	resp->nombres :			Arreglo de nombres y aliases del sitio. Esto es lo que me interesa agregar a la tabla.
-	* 
-	
-	Tambi'en se le entra con la estructura "otro" original
-	
-	*/
-	
-	g_debug("refill_site_table: entering..");
-	g_debug("pregunta: %s",(gchar*)resp->pregunta);
-	otro_struct* otro = (otro_struct*) user_data;
-	
-	int a = 0;
-	int i;
-	unsigned char **tmp;
-	uint32_t** temp_addresses;
-	gboolean encontrado = FALSE;
-	
-	otro->solved_sites++;	// Este sitio ya est'a resuelto.
-	
-	// Buscar en la tabla de sitios del peer el sitio para el que se pregunt'o
-	
-	while ((otro->p->tabla_sitios[a] != NULL) && (encontrado == FALSE)) {
-		
-		//g_debug("analizing site %s",otro->p->tabla_sitios[a]->names[0]);
-		
-		if (strcmp((gchar*)otro->p->tabla_sitios[a]->names[0],(gchar*)resp->pregunta) == 0) {
-			
-			// Este es el sitio para el que se pregunt'o, por lo tanto lo que hay que hacer es agregar los nombres que vienen en la
-			// respuesta a la lista de nombres del sitio en la tabla, as'i como agregar las direcciones ip tambi'en
-			
-			encontrado = TRUE;
-			
-			for (unsigned char** mm = &(resp->nombres[0]); *mm != NULL;mm++) {
-				
-				//g_debug("analizando respuesta %s",(*mm));
-				
-				//Recorrer la tabla a ver si esa respuesta ya est'a guardada.
-				
-				i = 0;
-				while (otro->p->tabla_sitios[a]->names[i] != NULL){
-						
-					if (strcmp((const char*)otro->p->tabla_sitios[a]->names[i],(const char*)(*mm)) == 0){
-					
-						//g_debug("ese nombre de sitio ya est'a en la tabla");
-						break;
-					}
-					i++;
-				}
-				
-				if (otro->p->tabla_sitios[a]->names[i] == NULL) {
-					
-					tmp = g_new0(unsigned char*,i+2);
-					memcpy(tmp,otro->p->tabla_sitios[a]->names,i*sizeof(unsigned char*));
-					/*for (unsigned int k=0;k<i;k++) {
-						tmp[k] = p->tabla_sitios[a]->names[k];
-						g_debug("movido %s",tmp[k]);
-					}*/
-					g_free(otro->p->tabla_sitios[a]->names);
-					otro->p->tabla_sitios[a]->names = tmp;
-					otro->p->tabla_sitios[a]->names[i] = (unsigned char*)g_strdup((const char*)(*mm));
-					g_debug("agregado el sitio %s a la tabla del peer",otro->p->tabla_sitios[a]->names[i]);
-				}
-			}
-			
-			for (sockaddr_in** mm = &(resp->ip_addresses[0]); *mm != NULL;mm++) {
-				
-				i = 0;
-				while (otro->p->tabla_sitios[a]->ip_v4[i] != NULL){
-						
-					if (*(otro->p->tabla_sitios[a]->ip_v4[i]) == (*mm)->sin_addr.s_addr){
-					
-						//g_debug("esa ip ya est'a en la tabla");
-						break;
-					}
-					i++;
-				}
-				//g_debug("1");
-				if (otro->p->tabla_sitios[a]->ip_v4[i] == NULL) {
-					
-					long p1;
-					struct sockaddr_in aa;
-					p1=(*mm)->sin_addr.s_addr;
-					//aa.sin_addr.s_addr=(*p1);
-
-					temp_addresses = g_new0(uint32_t*,i+2);
-					memcpy(temp_addresses,otro->p->tabla_sitios[a]->ip_v4,i*sizeof(uint32_t*));
-					
-					g_free(otro->p->tabla_sitios[a]->ip_v4);
-					otro->p->tabla_sitios[a]->ip_v4 = temp_addresses;
-					
-					otro->p->tabla_sitios[a]->ip_v4[i] = g_new0(uint32_t,1);
-					memcpy(otro->p->tabla_sitios[a]->ip_v4[i],&p1,sizeof(uint32_t));
-					
-					/*uint32_t** temp_addresses = g_new0(uint32_t*,otro->p->tabla_sitios[a]->ip_v4_addresses + 1 );
-					
-					for (unsigned int l=0;l < otro->p->tabla_sitios[a]->ip_v4_addresses;l++) temp_addresses[l] = otro->p->tabla_sitios[a]->ip_v4[l];
-					
-					g_free(otro->p->tabla_sitios[a]->ip_v4);
-
-					otro->p->tabla_sitios[a]->ip_v4 = temp_addresses;
-					
-					otro->p->tabla_sitios[a]->ip_v4[otro->p->tabla_sitios[a]->ip_v4_addresses] = g_new0(uint32_t,1);
-					
-					otro->p->tabla_sitios[a]->ip_v4_addresses++;
-					
-					memcpy(otro->p->tabla_sitios[a]->ip_v4[otro->p->tabla_sitios[a]->ip_v4_addresses - 1],&p1,sizeof(uint32_t));*/
-					
-					aa.sin_addr.s_addr=(*otro->p->tabla_sitios[a]->ip_v4[i]);
-					
-					g_debug("agregada la ip # %d del sitio %s = %s",otro->p->tabla_sitios[a]->ip_v4_addresses,
-							otro->p->tabla_sitios[a]->names[0],inet_ntoa(aa.sin_addr));
-							
-					otro->p->tabla_sitios[a]->ip_v4_addresses++;
-					
-				}
-			}	
-		}
-		a++;
-	}
-	return;
-}
-
-gboolean get_rid_sombies_delayed (otro_struct* otro) {
-	
-	if (hs_array->locked == TRUE) return TRUE;
-	else {
-		
-		hs_array->locked = TRUE;
-			
-		get_rid_sombies (otro->p);
-		
-		hs_array->locked = FALSE;
-	
-		http_send_redirect(otro->h, otro->dest->str);
-		g_string_free( otro->dest, 1 );
-		
-		g_io_channel_shutdown(otro->h->sock,TRUE,NULL);
-		g_io_channel_unref(otro->h->sock );
-		remove_from_h_array(otro->h);
-		
-		g_free(otro);
-	}
-	return FALSE;
-	
-}
-
-gboolean wait_wsk_solve_dns (otro_struct* otro) {
-	
-	if (otro->counter == 0){
-		
-		// Solicitar resoluci'on dns asincr'onica para cada una de las direcciones de la tabla del peer.
-		unsigned int i = 0;
-		while (otro->p->tabla_sitios[i] != NULL) {	// Esto se hace para cada sitio de la tabla
-			
-			//g_debug("resolviendo aliases y direcciones del sitio: %s",otro->p->tabla_sitios[i]->names[0]);
-			resolver->solve_address((unsigned char*)otro->p->tabla_sitios[i]->names[0],T_A,refill_site_table,(otro_struct*) otro);
-			i++;
-		}	
-	}
-	else if (otro->counter/2 == (unsigned int)CONFd("wsk_dns_timeout")) {
-		
-		// Esto es la condici'on de timeout esperando por el wsk o por el dns, por lo tanto no se puede enviar el redirect al cliente
-		// ,se env'ia entonces un redirect a una p'agina de error local que le informa del error al cliente y que contacte a la administraci'on
-		// del sistema, etc..
-		
-		g_debug("wait_wsk_solve_dns: time out waiting for wsk or dns..");
-		
-		g_string_free( otro->dest, 1 );
-		
-		/*if (g_hash_table_remove(peer_tab,otro->p->hw)) {
-			g_debug("wait_wsk_solve_dns: removido el peer de la hashtable");
-			peer_free(otro->p);
-		}*/
-		
-		g_io_channel_shutdown(otro->h->sock,FALSE,NULL);
-		g_io_channel_unref(otro->h->sock );
-		remove_from_h_array(otro->h);
-		g_free(otro);	
-		
-		return FALSE;
-	}
-	else if (otro->solved_sites == otro->p->cantidad_sitios){
-		
-		if (CONFd("usewsk")) {
-			
-			if (wsk_comm_interface->get_status() != WSK_CLIENT_ESTABLISHED) {
-				
-				otro->counter++;
-				return TRUE;
-			}
-		}
-		
-		// Hacer la redirecci'on aqu'i.
-		
-		otro->p->ready = TRUE;
-		
-		
-		if (hs_array->locked == FALSE) {
-			
-			hs_array->locked = TRUE;
-			
-			get_rid_sombies (otro->p);
-			
-			hs_array->locked = FALSE;
-		
-			http_send_redirect(otro->h, otro->dest->str);
-			g_string_free( otro->dest, 1 );
-			
-			g_io_channel_shutdown(otro->h->sock,TRUE,NULL);
-			g_io_channel_unref(otro->h->sock );
-			remove_from_h_array(otro->h);
-			
-			g_free(otro);
-			
-			return FALSE;
-		}
-		else {
-			
-			g_timeout_add(50,(GSourceFunc)get_rid_sombies_delayed, otro);
-			return FALSE;
-		}
-	}
-	otro->counter++;
-	return TRUE;
-}
-
-void capture_peer ( http_request *h,peer* p ) {
-	
-    //gchar *dest;
-    gchar *redir = target_redirect(h);
-    //gchar *redir = url_encode(orig);
-    GString* dest;
-    
-    GHashTable* args = g_hash_new();
-
-	g_hash_set( args, "redirect",	redir );
-	g_hash_set( args, "usertoken",	get_peer_token(p) );
-	g_hash_set( args, "userMac",    p->hw );
-	g_hash_set( args, "deviceMac",	macAddressFrom);
-
-	dest = build_url( CONF("AuthServiceURL"), args );
-	
-	if (CONFd("usewsk")) wsk_comm_interface->wsk_restart();
-	
-	otro_struct* otro = g_new0( otro_struct, 1);
-	otro->h = h;
-	otro->p = p;
-	otro->dest = dest;
-	otro->counter = 0;
-	otro->solved_sites = 0;
-	
-	g_timeout_add(100,(GSourceFunc)wait_wsk_solve_dns, otro);
-	
-	g_hash_free( args );
-	//g_free( orig  );
-	g_free( redir );
-	
-	return;    
-}
 
 int handle_request( http_request *h ) {
 	
 	peer* p;
-	//gchar* peer_hw;
-	int ret = 1;
+	gchar *hostname = HEADER("Host");
+	gchar *sockname = local_host(h);
+	gchar *t, *t1, *t2, *dest;
 	
 	//g_debug("handle_request: entering..");
 	
 	p = find_peer(h);
+	//g_debug("handle_request: peer status = %d", p->status);
+	
+	switch (p->status){
 		
-	gchar *hostname = HEADER("Host");
-	gchar *sockname = local_host(h);
-
-	if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
-
-		capture_peer(h,p);
-		ret = 0;
+		case 0:		// 0 = En proceso de autentificaci'on
+			
+			if (g_strstr_len(h->buffer->str,50,"/Account/ExternalLogin?userMac=") != NULL) {
+							
+				// Aqu'i se captur'o una solicitud atrasada a datalnet despue's de un castigo, por lo tanto se
+				// redirecciona nuevamente al principio.
+				
+				//g_debug("handle_request: capturada una solicitud atrasada");
+				
+				t = g_strdup(h->buffer->str);
+				t1 = g_strstr_len(t,-1,"&redirect=");
+		
+				for (int i = 0; i<10;i++) t1++;
+				t2 = g_strstr_len(t1,-1,"&deviceMac");
+				*t2 = '\0';
+				//g_debug("t1 before = %s",t1);
+				
+				arregla_redirect(t1);
+				
+				//g_debug("t1 after = %s",t1);
+				
+				dest = g_strdup_printf( "http://%s:%s/?redirect=%s",h->sock_ip, CONF("GatewayPort"), t1 );
+				
+				http_send_redirect1( h, dest, NULL );
+				g_free(t);
+				g_free(dest);
+		
+			}
+			else if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
+		
+				capture_peer(h,p);
+			}
+			else if (strcmp( h->uri, "/" ) == 0) {
+		
+				if ( QUERY("mode_login") != NULL || QUERY("mode_login.x") != NULL ) {
+					
+					g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip);
+					
+					// Aqu'i se abre el firewall por el grace period enviando los paquetes ip para modo de usuario, de tal manera 
+					// que se empieza a contar el tr'afico bueno y el malo. El peer se pone en modo 2.
+					
+					peer_permit(nocat_conf,p,h);
+					//g_debug("handle_request: peer %s en modo 2...", h->peer_ip);
+					p->status = 2;
+					p->current_time = time(NULL);
+					p->contador_b = 0;
+					p->contador_m = 0;
+	
+					g_free( sockname );
+					return 0;
+				}
+				else if ( QUERY("redirect") != NULL ) {
+					
+					splash_peer(h);
+				} 
+				else {
+					
+					capture_peer(h,p);
+				}
+			}
+			else {
+				http_serve_file( h, CONF("DocumentRoot") );
+			}
+			break;
+			
+		case 1:		// 1 = Castigado.
+			
+			if ( (g_strstr_len(h->buffer->str,-1,"/Account/ExternalLogin?userMac=") != NULL) &&
+				(g_strstr_len(h->buffer->str,-1,"&deviceMac=") != NULL) && (g_strstr_len(h->buffer->str,-1,"usertoken=") != NULL) ) {
+					
+				// Aqu'i el cliente est'a capturado y para salir del castigo oprime el bot'on de datalnet lo que har'ia que se redireccione
+				// el POST a datalnet, lo que no puede ser, por lo tanto se le env'ia para el principio con la direcci'on original que quer'ia
+				// abrir.
+				
+				//g_debug("handle_request: capturada una solicitud atrasada");
+				
+				t = g_strdup(h->buffer->str);
+				t1 = g_strstr_len(t,-1,"&redirect=");
+		
+				for (int i = 0; i<10;i++) t1++;
+				t2 = g_strstr_len(t1,-1,"&deviceMac");
+				*t2 = '\0';
+				//g_debug("t1 before = %s",t1);
+				
+				arregla_redirect(t1);
+				
+				//g_debug("t1 after = %s",t1);
+				
+				punish_peer(h,p,t1);
+				
+				g_free(t);
+			}
+			else {
+				if (g_strstr_len(h->uri_orig,-1,"/images/socialwifilogo.png") != NULL) {
+					
+				    int fd, status;
+				    fd = http_open_file( "/usr/share/sicat/htdocs/images/socialwifilogo.png", &status );
+				
+				    http_add_header(  h, "Content-Type", http_mime_type("/usr/share/sicat/htdocs/images/socialwifilogo.png") );
+				    http_add_header ( h, "Connection", "close");
+				    http_send_header( h, status, fd == -1 ? "Not OK" : "OK", NULL );
+				
+				    if ( fd != -1 )
+					http_sendfile( h, fd );
+				
+				    close(fd);
+				}
+				else punish_peer(h,p,NULL);
+			}
+			break;
+		case 2:		// 2 = Navegando por el grace period.
+			
+			if (strcmp(hostname, sockname) != 0){	// El peer deber'ia estar saliendo a internet porque se le abri'o el firewall por el grace period
+													//,por lo tanto esto es un sombie, se le redirecciona para que vuelva a salir correctamente.
+					
+				return_peer (h,p,hostname);	
+			}	
+			
+			break;
+		case 3:		// 3 = Navegando autorizado.
+			
+			if (strcmp( hostname, sockname ) != 0){	// El peer deber'ia estar saliendo a internet porque se le abri'o el firewall por el grace period
+													//,por lo tanto esto es un sombie, se le redirecciona para que vuelva a salir correctamente.
+					
+				return_peer (h,p,hostname);	
+			}
+			
+			break;
+		
+		default:
+			
+			break;
 	}
-
-	g_free(sockname);
-
+	g_free( sockname );
+	return 1;
 	//g_debug("handle_request: leaving..");
-    return ret;
+    
 }
 
-/*void splash_peer ( http_request *h ) {
+void splash_peer ( http_request *h ) {
 	
     GHashTable *data1;
     gchar *path = NULL, *file, *action1, *host;
@@ -415,10 +277,9 @@ int handle_request( http_request *h ) {
 		g_free( file );
 		g_free( path );
     }
-}*/
+}
 
-/*
-void punish_peer ( http_request *h,peer* p ) {
+void punish_peer ( http_request *h,peer* p, gchar* original_url) {
 	
     GHashTable *data1;
     gchar *path = NULL, *file, *action1, *host;
@@ -426,14 +287,14 @@ void punish_peer ( http_request *h,peer* p ) {
     time_t actual_time;
     gchar* diff;
     
-    //host = local_host( h );
-    //action1 = g_strdup_printf("http://%s/", host);
-    
-    action1 = target_redirect(h);
+    if (original_url == NULL) action1 = target_redirect(h);
+    else action1 = original_url;
    
     data1 = g_hash_dup(nocat_conf);
     
     actual_time = time(NULL) - p->punish_time;
+    //g_debug("punish_peer: actual_time = %d",actual_time);
+    //g_debug("punish_peer: se resta = %d",((unsigned int)CONFd("LoginPunish") - actual_time) + 5);
     diff = g_strdup_printf("%u",((unsigned int)CONFd("LoginPunish") - actual_time) + 5);
     
     g_hash_set( data1, "diff1", diff);
@@ -449,11 +310,10 @@ void punish_peer ( http_request *h,peer* p ) {
 	
     g_hash_free( data1 );
     g_free(diff);
-    g_free( action1 );
+    if (original_url == NULL) g_free( action1 );
     //g_free( host );
     if ( path != NULL ) {
 		g_free( file );
 		g_free( path );
     }
 }
-*/

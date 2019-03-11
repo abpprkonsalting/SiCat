@@ -19,7 +19,6 @@
 
 /*Modifications added by abp*/
 
-extern class h_requests* requests;
 extern struct hs_array_t* hs_array;
 
 GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
@@ -234,6 +233,7 @@ http_request* http_request_new6 ( GIOChannel* sock,int fd ) {
 void http_request_free ( http_request *h ) {
 	
     g_free( h->uri );
+    g_free(h->uri_orig);
     g_free( h->method );
     g_hash_free( h->header );
     g_hash_free( h->query );
@@ -261,7 +261,8 @@ GHashTable* parse_query_string( gchar *query ) {
 			val = (gchar*)"1";
 
 		key = url_decode( key );	
-		val = url_decode( val );	
+		val = url_decode( val );
+		//g_debug("parse_query_string: key/value: %s = %s",key,val);
 		g_hash_set( data, key, val );
 		g_free( key );
 		g_free( val );
@@ -286,9 +287,10 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 
     h->method = g_strdup( items[0] );
     h->uri    = g_strdup( items[1] );
-        
-    g_debug( "http_parse_header: method= %s", h->method );
-    g_debug( "http_parse_header: uri= %s", h->uri );
+    h->uri_orig = g_strdup( items[1] );
+    
+    //g_debug( "http_parse_header: method= %s", h->method );
+    //g_debug( "http_parse_header: uri= %s", h->uri );
     
     g_strfreev( items );
 
@@ -307,7 +309,7 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 			/* Strip ": " plus leading and trailing space from val */
 			g_strchomp( val += 2 ); // ": "
 			
-			g_debug("http_parse_header: Header in: %s=%s", key, val );
+			//g_debug("http_parse_header: Header in: %s=%s", key, val );
 			
 			g_hash_set( head, key, val );
 		}
@@ -315,7 +317,7 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 
     g_strfreev( lines );
     
-    if (h->header != NULL) g_hash_free(h->header);	//Chequear que aqu'i se est'a liberando tambi'en los strings en si, si es que hace falta.
+    if (h->header != NULL) g_hash_free(h->header);
     h->header = head;
     return head;
 }
@@ -370,7 +372,7 @@ gboolean http_request_ok (http_request *h) {
 			if (h->query) {
 				
 				z = g_hash_as_string( h->query );
-				g_debug( "http_request_ok: Query: %s", z->str );
+				//g_debug( "http_request_ok: Query: %s", z->str );
 				g_string_free(z, 1);
 			}
 			h->complete++;
@@ -451,7 +453,7 @@ static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
     return r;
 }*/
 
-GIOError http_send_header (http_request *h, int status, const gchar *msg) {
+GIOError http_send_header (http_request *h, int status, const gchar *msg, peer *p ) {
 	
     GString *hdr = g_string_new("");
     GIOError r;
@@ -462,21 +464,31 @@ GIOError http_send_header (http_request *h, int status, const gchar *msg) {
     
     g_string_append( hdr, "\r\n" );
     
-    r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
+    //r = g_io_channel_write( h->sock, hdr->str, hdr->len, (guint*)&n );
     
-    if (*(h->sock_ip) != 0) g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip);
-    else g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip6);
+    g_io_channel_write_chars(h->sock, hdr->str,hdr->len,(guint*)&n,NULL);
+    g_io_channel_flush(h->sock,NULL);
+    
+    g_debug ("http_send_header: sent header= %s to peer %s",hdr->str, h->peer_ip);
     
     g_string_free( hdr, 1 );
     
     return r;
 }
 
-void http_send_redirect( http_request *h, gchar *dest) {
+void http_send_redirect( http_request *h, gchar *dest, peer *p ) {
 	
     http_add_header ( h, "Location", dest );
-    http_send_header( h, 302, "Moved");
+    http_add_header ( h, "Connection", "close");
+    http_send_header( h, 307, "Temporary Redirect", p );    
 }
+
+void http_send_redirect1( http_request *h, gchar *dest, peer *p ) {
+	
+    http_add_header ( h, "Location", dest );
+    http_add_header ( h, "Connection", "close");
+    http_send_header( h, 303, "See Other", p );    
+} 
 
 gchar *http_fix_path (const gchar *uri, const gchar *docroot) {
 	
@@ -544,7 +556,8 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     fd   = http_open_file( path, &status );
 
     http_add_header(  h, "Content-Type", http_mime_type( path ) );
-    http_send_header( h, status, fd == -1 ? "Not OK" : "OK");
+    http_add_header ( h, "Connection", "close");
+    http_send_header( h, status, fd == -1 ? "Not OK" : "OK", NULL );
 
     if ( fd != -1 )
 	http_sendfile( h, fd );
@@ -565,7 +578,7 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     n = strlen(form);
 
     http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
-    http_send_header( h, 200, "OK");
+    http_send_header( h, 200, "OK", NULL);
 
     //r = g_io_channel_write( h->sock, form, n, &n );
     r = g_io_channel_write_chars(h->sock, form, n,&n,&gerror);
@@ -596,9 +609,12 @@ GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 )
     n = strlen(form);
 
     http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
-    http_send_header( h, 200, "OK");
+    http_add_header ( h, "Connection", "close");
+    http_send_header( h, 200, "OK", NULL);
 
-    r = g_io_channel_write( h->sock, form, n, &n );
+    //r = g_io_channel_write( h->sock, form, n, &n );
+    g_io_channel_write_chars( h->sock, form, n, &n ,NULL);
+    g_io_channel_flush(h->sock,NULL);
 
     g_free( form );
 
@@ -674,7 +690,7 @@ guint http_request_read (http_request *h) {
 		
 		h->is_used = TRUE;
 		
-		g_debug("http_request_read: request= %s",h->buffer->str);
+		//g_debug("http_request_read: request= %s",h->buffer->str);
 		
 		gchar *header_end = strstr( h->buffer->str,"\r\n\r\n" );
 		
@@ -729,193 +745,3 @@ guint http_request_read (http_request *h) {
 		return 2;
 	}
 }
-
-void get_rid_sombies (peer* p) {
-	
-	http_request** tmp = &(hs_array->items[0]);
-			
-	// Se recorre el arreglo de items de la cola hasta llegar al NULL final.
-	/*while (*tmp != NULL) {
-		
-		if ((strcmp((*tmp)->hw,p->hw) == 0) && ((*tmp)->is_used == FALSE)){
-			
-			show_socket_pairs1((char*)"get_rid_sombies: removed: ", *tmp);
-			g_io_channel_shutdown((*tmp)->sock,FALSE,NULL);
-			g_io_channel_unref( (*tmp)->sock );
-			
-			http_request_free ((*tmp));
-			*tmp = NULL;
-			hs_array->removidos++;
-		}
-		tmp++;
-	}*/
-	for (unsigned int i = 0;i<hs_array->cantidad-1;i++) {
-			
-		if ((strcmp(hs_array->items[i]->hw,p->hw) == 0) && (hs_array->items[i]->is_used == FALSE)) {
-			
-			show_socket_pairs1((char*)"get_rid_sombies: removed: ", hs_array->items[i]);
-			g_io_channel_shutdown(hs_array->items[i]->sock,FALSE,NULL);
-			g_io_channel_unref( hs_array->items[i]->sock );
-			
-			http_request_free (hs_array->items[i]);
-			hs_array->items[i] = NULL;
-			hs_array->removidos++;
-		}	
-	}
-	resize_h_array();
-}
-
-gboolean remove_from_h_array_delayed(http_request* h ) {
-	
-	if (hs_array->locked == TRUE) return TRUE;
-	else {
-		
-		hs_array->locked = TRUE;
-		
-		http_request_free(h);
-		
-		for (unsigned int i = 0;i<hs_array->cantidad;i++) {
-			
-			if (hs_array->items[i] == h) hs_array->items[i] = NULL;
-		}
-		
-		hs_array->removidos++;
-		resize_h_array();
-		
-		hs_array->locked = FALSE;
-	}
-	return FALSE;
-}
-
-void remove_from_h_array(http_request* h) {
-	
-	if (hs_array->locked == FALSE) {
-		
-		hs_array->locked = TRUE;
-		
-		http_request_free(h);
-		
-		for (unsigned int i = 0;i<hs_array->cantidad;i++) {
-			
-			if (hs_array->items[i] == h) hs_array->items[i] = NULL;
-		}
-		
-		hs_array->removidos++;
-		resize_h_array();
-		
-		hs_array->locked = FALSE;
-	}
-	else {
-		
-		g_timeout_add(50, (GSourceFunc) remove_from_h_array_delayed, h);
-	}
-}
-
-void resize_h_array(){
-	
-	http_request** tmp = g_new0(http_request*, hs_array->cantidad - hs_array->removidos);
-	
-	unsigned int a = 0;
-	
-	for (unsigned int i = 0;i<hs_array->cantidad;i++) {
-		
-		if (hs_array->items[i] != NULL) {
-			
-			tmp[a] = hs_array->items[i];
-			a++;
-		}
-	}
-	
-	g_free(hs_array->items);
-	hs_array->items = tmp;
-	hs_array->cantidad = hs_array->cantidad - hs_array->removidos;
-	hs_array->removidos = 0;
-}
-
-gboolean add_h_array_delayed(http_request* h ) {
-	
-	if (hs_array->locked == TRUE) return TRUE;
-	else {
-		
-		hs_array->locked = TRUE;
-		
-		http_request** tmp = g_new0(http_request*,hs_array->cantidad + 1);
-			
-		for (unsigned int i = 0; i < hs_array->cantidad;i++) tmp[i] = hs_array->items[i];
-			
-		g_free(hs_array->items);
-		hs_array->items = tmp;
-		hs_array->items[hs_array->cantidad-1] = h;
-		hs_array->cantidad++;
-		
-		show_socket_pairs1((char*)"add_h_array delayed", h);
-		h->source_id = g_io_add_watch(h->sock, G_IO_IN,(GIOFunc)handle_read, h);
-		
-		hs_array->locked = FALSE;
-	
-	}
-	return FALSE;
-}
-
-void add_h_array(http_request* h){
-
-	if (hs_array->locked == FALSE) {
-		
-		hs_array->locked = TRUE;
-		
-		http_request** tmp = g_new0(http_request*,hs_array->cantidad + 1);
-			
-		for (unsigned int i = 0; i < hs_array->cantidad;i++) tmp[i] = hs_array->items[i];
-			
-		g_free(hs_array->items);
-		hs_array->items = tmp;
-		hs_array->items[hs_array->cantidad-1] = h;
-		hs_array->cantidad++;
-		
-		show_socket_pairs1((char*)"add_h_array", h);
-		h->source_id = g_io_add_watch(h->sock, G_IO_IN,(GIOFunc)handle_read, h);
-		
-		hs_array->locked = FALSE;
-	}
-	else {
-		
-		g_timeout_add(50, (GSourceFunc) add_h_array_delayed, h);
-	}
-}
-
-gboolean show_socket_pairs1(gchar* function_name, http_request *h){
-
-	gint fd, r;
-	struct sockaddr_in local_addr, remote_addr;
-	unsigned int n = sizeof(struct sockaddr_in);
-	gchar localaddr_ip[16], remoteaddr_ip[16];
-	const gchar *r2;
-	unsigned short int local_port, remote_port;
-
-	fd = g_io_channel_unix_get_fd(h->sock);
-
-	r = getsockname (fd, (struct sockaddr *)&local_addr,  &n );
-	if (r == -1) { g_debug( "%s: getsockname failed: %m",function_name ); }
-
-	local_port = local_addr.sin_port;
-
-	r2 = (gchar*)inet_ntop( AF_INET, &local_addr.sin_addr, localaddr_ip, INET_ADDRSTRLEN );
-    	//g_assert( r2 != NULL );
-
-	n = sizeof(struct sockaddr_in);
-	r = getpeername (fd, (struct sockaddr *)&remote_addr,  &n );
-	if (r == -1) { g_debug( "%s: getpeername failed: %m",function_name );}
-
-	remote_port = remote_addr.sin_port;
-
-	r2 = (gchar*)inet_ntop( AF_INET, &remote_addr.sin_addr, remoteaddr_ip, INET_ADDRSTRLEN );
-    	//g_assert( r2 != NULL );
-
-	g_debug( "%s: fd = %d -- remote address = %s:%d -- local address = %s:%d",
-			function_name , fd, r2, remote_port, localaddr_ip, local_port);
-
-	return TRUE;
-
-}
-
-

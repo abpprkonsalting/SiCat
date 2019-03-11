@@ -127,12 +127,20 @@ gchar *conf_string(GHashTable *conf, const gchar *key ){
 	return val;
 }
 
+/*Modifications added by abp*/
 glong conf_int( GHashTable *conf, const gchar *key ) {
+
+	/* abp: The line order was changed because it does not feels right to execute g_hash_table_lookup before assertin key,
+		besides it was added the assertion of conf, that is missing
+	gchar *val = g_hash_table_lookup( conf, key );*/
 
 	gchar *val;
 
 	gchar *err;
 	glong vint;
+
+	g_assert( key != NULL );
+	g_assert( conf != NULL );/* added by abp*/
 
 	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
 	if (val == NULL) g_warning("conf_int: Missing required configuration directive '%s'", key);
@@ -143,12 +151,20 @@ glong conf_int( GHashTable *conf, const gchar *key ) {
 	return vint;
 }
 
+/*Modifications added by abp*/
 gdouble conf_float( GHashTable *conf, const gchar *key ) {
+
+	/* abp: The line order was changed because it does not feels right to execute g_hash_table_lookup before assertin key,
+		besides it was added the assertion of conf, that is missing
+	gchar *val = g_hash_table_lookup( conf, key );*/
 
 	gchar *val;
 
 	gchar *err;
 	gdouble vdbl;
+
+	g_assert( key != NULL );
+	g_assert( conf != NULL );/* added by abp*/
 
 	val = (gchar*) g_hash_table_lookup( conf, key );/* added by abp*/
 	if (val == NULL) g_warning("conf_float: Missing required configuration directive '%s'", key);
