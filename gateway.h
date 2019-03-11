@@ -1,6 +1,19 @@
 //# include "http.h"
 # include "firewall.h"
-# include "websck.h"
+//# include "websck.h"
+//# include "dns.h"
+
+/*typedef struct otro_str {
+	
+    http_request* h;
+    GString* dest;
+    peer* p;
+    unsigned int counter;
+    unsigned int solved_sites;
+
+} otro_struct;*/
+
+
 
 gchar* target_redirect ( http_request *h );
 gchar* local_host( http_request *h );

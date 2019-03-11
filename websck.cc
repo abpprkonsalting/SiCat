@@ -6,6 +6,40 @@ extern GHashTable* peer_tab;
 extern GHashTable *nocat_conf;
 extern class comm_interface* wsk_comm_interface;
 extern gchar* macAddressFrom;
+extern class DNS_resolver* resolver;
+
+void print_wsk_server_name(struct respuesta* resp,void* user_data){
+	
+	if (resp->nombres[0] != NULL) g_debug("print_wsk_server_name: name of the wsk server: %s",resp->nombres[0]);
+	else g_debug("print_wsk_server_name: respuesta vacia");
+}
+
+void set_wsk_server_IP(struct respuesta* resp,void* user_data){
+	
+	if (resp->ip_addresses[0] != NULL) {
+		
+		int x;
+		
+		g_free(wsk_comm_interface->wsk_server_IP);
+		wsk_comm_interface->wsk_server_IP = g_new0(char,INET_ADDRSTRLEN);
+		
+		// Aqu'i tengo que garantizar primero que resp->ip_addresses[0] no sea vacio
+		
+		inet_ntop( AF_INET, &(resp->ip_addresses[0]->sin_addr), wsk_comm_interface->wsk_server_IP, INET_ADDRSTRLEN );
+		g_debug("set_wsk_server_IP: direccion IP del servidor websockets: %s",wsk_comm_interface->wsk_server_IP);
+		
+		//resolver->solve_name((unsigned char*)"10.0.55.200.in-addr.arpa",print_wsk_server_name,NULL);
+		
+		x =  wsk_comm_interface->wsk_create();
+		if (x == -1){
+				
+			g_warning("set_wsk_server_IP: websocket initialization error, retrying...");
+			wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"set_wsk_server_IP");
+		}
+	}
+	else wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"set_wsk_server_IP");
+	return;
+}
 
 gboolean is_IP(gchar* name){
 	
@@ -18,40 +52,6 @@ gboolean is_IP(gchar* name){
 	
 	if (res == 1) return TRUE;
 	else return FALSE;
-}
-
-void dns_callback (GObject *source_object,GAsyncResult *res,gpointer user_data){
-	
-	GList * mylist;
-	gchar* address;
-	int x;
-	GError* gerror = NULL;
-	
-	mylist = g_resolver_lookup_by_name_finish((GResolver *)source_object,res,&gerror);
-	
-	if (gerror != NULL) {
-				
-		g_warning("dns_callback: g_resolver_lookup_by_name_finish error: %s",gerror->message);
-		wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
-		return;
-	}
-	
-	if (mylist != NULL){
-		
-		address = g_inet_address_to_string((GInetAddress *)mylist->data);
-		wsk_comm_interface->set_wsk_server_IP(address);
-		g_free(address);
-		x = wsk_comm_interface->wsk_create();
-		if (x == -1){
-				
-			g_warning("dns_callback: websocket initialization error, retrying...");
-			wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
-		}
-	}
-	else {
-		g_warning("dns_callback: g_resolver_lookup_by_name_finish error ..");
-		wsk_comm_interface->wsk_set_status(WSK_DISCONNECTED,"dns_callback");
-	}
 }
 
 int callback_authentication(struct libwebsocket_context* thi, struct libwebsocket* wsi, enum libwebsocket_callback_reasons reason, 
@@ -1140,7 +1140,6 @@ comm_interface::comm_interface(){
 	wsk_status = WSK_DISCONNECTED;
 	init = TRUE;
 	g_type_init();
-	myResolver = g_resolver_get_default();
 	g_timeout_add( 1000, (GSourceFunc) call_libwebsocket_service,NULL);
 	
 }
@@ -1314,45 +1313,48 @@ int comm_interface::solve_dns(GHashTable *conf){
 		
 		if (is_IP(addr)) {
 			
-			// La variable del archivo de configuración era una dirección IP válida, por lo tanto
+			// La variable del archivo de configuración es una dirección IP válida, por lo tanto
 			// no hay que resolver DNS.
 			
-			if (wsk_server_IP == NULL) set_wsk_server_IP(addr);	// Si la variable es NULL es porque esta es la primera vez
-																// que se chequea, por lo tanto se le asigna el valor que
-																// hay en el archivo de configuración y se retorna informando
-																// que no hay que resolver DNS. Si la variable no era NULL es
-																// porque esta no es la primera vez que se chequea, por lo
-																// tanto en un chequeo anterior ya se había establecido su
-																// valor correcto, se retorna y ya.
+			if (wsk_server_IP == NULL) {		// Si la variable es NULL es porque esta es la primera vez
+												// que se chequea, por lo tanto se le asigna el valor que
+												// hay en el archivo de configuración y se retorna informando
+												// que no hay que resolver DNS. Si la variable no era NULL es
+												// porque esta no es la primera vez que se chequea, por lo
+				wsk_server_IP = g_strdup(addr);	// tanto en un chequeo anterior ya se había establecido su				
+				g_debug(						// valor correcto, se retorna y ya.
+				"comm_interface::solve_dns \
+				direccion IP del servidor \
+				websockets: %s",wsk_server_IP);
+			}													
 			return 0;
-			
 		}
 		else {
 			
 			// la variable no era un ip, por lo tanto hay que resolver DNS.
-			// Inicializar la interface de ares y realizar la solicitud DNS.
 			
-			g_debug("comm_interface::solve_dns: solving IP address for wsk server: %s",addr);
-			g_resolver_lookup_by_name_async(myResolver,addr,NULL,dns_callback,NULL);
+			g_message("comm_interface::solve_dns: solving IP address for wsk server: %s",addr);
 			
-			return 1;
+			resolver->solve_address((unsigned char*)addr,T_A,set_wsk_server_IP,NULL);
 			
+			return 1;	
 		}
 	}
 	else {
 		
-		g_message("solve_dns: the sicat.conf variable wsk_server_address could not be NULL, aborting..");
+		g_message("comm_interface::solve_dns: the sicat.conf \
+		variable wsk_server_address could not be NULL, aborting..");
 		g_assert(0);
 		return -1;
 	}
 }
 
-void comm_interface::set_wsk_server_IP(gchar* server_IP){
+/*void comm_interface::set_wsk_server_IP(struct sockaddr_in** addresses){
 	
 	g_free(wsk_server_IP);
 	wsk_server_IP = g_strdup(server_IP);
 	g_debug("comm_interface::set_wsk_server_IP: direccion IP del servidor websockets: %s",wsk_server_IP);
-}
+}*/
 
 int comm_interface::wsk_initialize(){
 	

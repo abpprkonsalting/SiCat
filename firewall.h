@@ -1,11 +1,12 @@
 # include <glib.h>
+# include <glib/gstdio.h>
 # include <sys/time.h>
 
-# include "conf.h"
-# include "util.h"
-# include "http.h"
+//# include "conf.h"
+//# include "util.h"
+//# include "http.h"
 
-extern GHashTable *nocat_conf;
+# include "dns.h"
 
 /*** Function prototypes start here ***/
 peer *peer_new ( GHashTable* conf, http_request *h );

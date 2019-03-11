@@ -62,6 +62,8 @@ struct conf_t default_conf[] = {
 	{ (gchar*)"wsk_keep_alive",	(gchar*)"3600"},
 	{ (gchar*)"wsk_log_level", (gchar*)"1"},
 	{ (gchar*)"usewsk", (gchar*)"1"},
+	{ (gchar*)"wsk_dns_timeout", (gchar*)"20"},
+	{ (gchar*)"dns_timeout", (gchar*)"60"},
 
     // Trailing NULL
     { NULL, NULL }
@@ -69,15 +71,41 @@ struct conf_t default_conf[] = {
 
 struct sites_t default_sites[] = {
 	
-	{ (unsigned int) 1, (gchar*)"www.datalnet.com"},
-	{ (unsigned int) 1, (gchar*)"socialap.blob.core.windows.net"},
-	{ (unsigned int) 2, (gchar*)"www.datalnet.com"},
-	{ (unsigned int) 2, (gchar*)"facebook.com"},
-	{ (unsigned int) 2, (gchar*)"fbstatic-a.akamaihd.net"},
-	{ (unsigned int) 2, (gchar*)"socialap.blob.core.windows.net"},
+	{ (unsigned int) 1, (unsigned char*)"www.datalnet.com"},
+	{ (unsigned int) 1, (unsigned char*)"socialap.blob.core.windows.net"},
+	{ (unsigned int) 1, (unsigned char*)"fonts.googleapis.com"},
+	{ (unsigned int) 1, (unsigned char*)"fonts.gstatic.com"},
+	//{ (unsigned int) 1, (unsigned char*)"webhst.com"},
+	//{ (unsigned int) 2, (unsigned char*)"www.datalnet.com"},
+	//{ (unsigned int) 2, (unsigned char*)"facebook.com"},
+	//{ (unsigned int) 2, (unsigned char*)"facebook.net"},
 	
+	{ (unsigned int) 2, (unsigned char*)"www.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"es-la.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"es-es.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"fr-fr.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"fr-ca.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"id-id.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"it-it.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"ko-kr.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"th-th.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"vi-vn.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"fbstatic-a.akamaihd.net"},
+	{ (unsigned int) 2, (unsigned char*)"pixel.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"error.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"developers.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"apps.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"apps.beta.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"connect.facebook.com"},
+	{ (unsigned int) 2, (unsigned char*)"connect.facebook.net"},
+	
+	
+	//{ (unsigned int) 2, (unsigned char*)"fbstatic-a.akamaihd.net"},
+	//{ (unsigned int) 2, (unsigned char*)"socialap.blob.core.windows.net"},
+	
+	//d2ebu295n9axq5.webhst.com
     // Trailing NULL
-    { (unsigned int) NULL, (gchar*) NULL }
+    { (unsigned int) NULL, (unsigned char*) NULL }
 };
 
 struct mime_type_t mime_types[] = {

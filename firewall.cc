@@ -59,7 +59,7 @@ void redirecciona_http (http_request *h, peer* p ){
 	g_string_free( dest, 1 );
 	g_hash_free( args );
 	
-    g_io_channel_shutdown(h->sock,FALSE,NULL);
+    g_io_channel_shutdown(h->sock,TRUE,NULL);
 	g_io_channel_unref(h->sock );
 	http_request_free (h);
 	
@@ -93,7 +93,7 @@ gboolean redirecciona_delayed (fw_action *act ){
 	g_string_free( dest, 1 );
 	g_hash_free( args );
 	
-    g_io_channel_shutdown(act->h->sock,FALSE,NULL);
+    g_io_channel_shutdown(act->h->sock,TRUE,NULL);
 	g_io_channel_unref(act->h->sock );
 	http_request_free (act->h);
 	g_spawn_close_pid(act->pid);
@@ -233,18 +233,22 @@ peer* peer_new ( GHashTable* conf, http_request *h ) {
 	p->autentication_stage = 1;
 	g_debug("peer_new: peer %s en proceso de autentificación, stage 1...", p->ip);
 	
-	unsigned int i = 0;
-	while (default_sites[i].name != NULL) i++;
-	p->tabla_sitios = g_new0(struct allowed_site*,i+1);
+	//p->cantidad_sitios = 0;
+	while (default_sites[p->cantidad_sitios].name != NULL) p->cantidad_sitios++;
+	p->tabla_sitios = g_new0(struct allowed_site*,p->cantidad_sitios+1);
 	
-	for (int j=0; j<i;j++){
+	for (unsigned int j=0; j<p->cantidad_sitios;j++){
 		
 		p->tabla_sitios[j] = g_new0(struct allowed_site,1);
 		p->tabla_sitios[j]->autentication_stage = default_sites[j].stage;
-		p->tabla_sitios[j]->name = g_strdup(default_sites[j].name);
-		//g_debug(p->tabla_sitios[j]->name);
+		
+		p->tabla_sitios[j]->names = g_new0(unsigned char*,2);
+		p->tabla_sitios[j]->names[0] = (unsigned char*)g_strdup((const gchar*)default_sites[j].name);
+		p->tabla_sitios[j]->ip_v4 = g_new0(uint32_t*,2);
+		//g_debug("nombre agregado: %s",p->tabla_sitios[j]->names[0]);
 	}
-    
+	
+    p->ready = FALSE;
     return p;
 }
 

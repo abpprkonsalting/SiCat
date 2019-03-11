@@ -20,6 +20,7 @@
 /*Modifications added by abp*/
 
 extern class h_requests* requests;
+extern struct hs_array_t* hs_array;
 
 GIOChannel *http_bind_socket( const char *ip, int port, int queue ) {
  
@@ -673,7 +674,7 @@ guint http_request_read (http_request *h) {
 		
 		h->is_used = TRUE;
 		
-		//g_debug("http_request_read: request= %s",h->buffer->str);
+		g_debug("http_request_read: request= %s",h->buffer->str);
 		
 		gchar *header_end = strstr( h->buffer->str,"\r\n\r\n" );
 		
@@ -729,128 +730,192 @@ guint http_request_read (http_request *h) {
 	}
 }
 
-/***************************** class h_requests methods ***************************/
-h_requests::h_requests(){
+void get_rid_sombies (peer* p) {
 	
-	cantidad = 0;
-	items = NULL;
-	
-}
-
-h_requests::~h_requests(){
-	
-	
-	
-}
-
-http_request* h_requests::add(GIOChannel *sock){
-	
-	http_request* new_request = http_request_new(sock,0);
-	
-	if (new_request != NULL){
+	http_request** tmp = &(hs_array->items[0]);
+			
+	// Se recorre el arreglo de items de la cola hasta llegar al NULL final.
+	/*while (*tmp != NULL) {
 		
-		cantidad += 1;
-		if (cantidad > 1) {     
+		if ((strcmp((*tmp)->hw,p->hw) == 0) && ((*tmp)->is_used == FALSE)){
 			
-			//http_request** items_new = g_try_renew(http_request*, items, cantidad);
-			http_request** items_new = g_try_new0(http_request*, cantidad);
+			show_socket_pairs1((char*)"get_rid_sombies: removed: ", *tmp);
+			g_io_channel_shutdown((*tmp)->sock,FALSE,NULL);
+			g_io_channel_unref( (*tmp)->sock );
 			
-			memcpy (items_new, items, sizeof(http_request*)*(cantidad-1));
-			
-			g_free(items);
-			items = items_new;
+			http_request_free ((*tmp));
+			*tmp = NULL;
+			hs_array->removidos++;
 		}
-		else items = g_try_new0(http_request*,cantidad);
-		
-		items[cantidad-1] = new_request;
-		
-		//g_io_channel_set_close_on_unref(items[cantidad-1]->sock,TRUE);
-		return items[cantidad-1];
+		tmp++;
+	}*/
+	for (unsigned int i = 0;i<hs_array->cantidad-1;i++) {
+			
+		if ((strcmp(hs_array->items[i]->hw,p->hw) == 0) && (hs_array->items[i]->is_used == FALSE)) {
+			
+			show_socket_pairs1((char*)"get_rid_sombies: removed: ", hs_array->items[i]);
+			g_io_channel_shutdown(hs_array->items[i]->sock,FALSE,NULL);
+			g_io_channel_unref( hs_array->items[i]->sock );
+			
+			http_request_free (hs_array->items[i]);
+			hs_array->items[i] = NULL;
+			hs_array->removidos++;
+		}	
 	}
-	else return NULL;
-	
+	resize_h_array();
 }
 
-http_request* h_requests::add6(GIOChannel *sock){
+gboolean remove_from_h_array_delayed(http_request* h ) {
 	
-	return NULL;
-	
-}
-
-http_request* h_requests::get(unsigned int index){
-	
-	return items[index];
-}
-
- int h_requests::get_index(http_request* h){
-	
-	for (unsigned int i = 0;i<cantidad;i++){
+	if (hs_array->locked == TRUE) return TRUE;
+	else {
 		
-		if (items[(unsigned int)i] == h) return i; 
+		hs_array->locked = TRUE;
+		
+		http_request_free(h);
+		
+		for (unsigned int i = 0;i<hs_array->cantidad;i++) {
+			
+			if (hs_array->items[i] == h) hs_array->items[i] = NULL;
+		}
+		
+		hs_array->removidos++;
+		resize_h_array();
+		
+		hs_array->locked = FALSE;
 	}
-	return -1;
+	return FALSE;
 }
 
-void h_requests::remove(http_request* h) {
+void remove_from_h_array(http_request* h) {
 	
-	g_debug("h_requests::remove: entering with cantidad = %d",cantidad);
-	if (cantidad == 1) {
+	if (hs_array->locked == FALSE) {
 		
-		http_request_free (items[0]);
-		cantidad = 0;
-		//g_free(items[0]);
-		g_free(items);
-		items = NULL;
+		hs_array->locked = TRUE;
+		
+		http_request_free(h);
+		
+		for (unsigned int i = 0;i<hs_array->cantidad;i++) {
+			
+			if (hs_array->items[i] == h) hs_array->items[i] = NULL;
+		}
+		
+		hs_array->removidos++;
+		resize_h_array();
+		
+		hs_array->locked = FALSE;
 	}
 	else {
-		for (unsigned int i = 0; i<cantidad;i++) {
-			
-			//g_message("items[%d] = %d",i,items[i]);
-			if (h == items[i]) {
-				
-				//g_message("found h(%d) as items[%d]",h,items[i]);
-				http_request_free (items[i]);
-				
-				for (unsigned int a = i;a<cantidad - 1;a++){
-				
-					items[a] = items[a+1];
-				}
-				//g_message("inside items[%d] = %d",i,items[i]);
-				break;
-			}
-		}
-		cantidad = cantidad - 1;
-		//http_request** items_new = g_try_renew(http_request*, items, cantidad);
-		http_request** items_new = g_try_new0(http_request*, cantidad);
-		memcpy (items_new, items, sizeof(http_request*)*(cantidad));
 		
-		g_free(items);
-		items = items_new;
+		g_timeout_add(50, (GSourceFunc) remove_from_h_array_delayed, h);
 	}
-	g_debug("h_requests::remove: leaving with cantidad = %d",cantidad);
 }
 
-void h_requests::get_ride_of_sombies(){
+void resize_h_array(){
 	
-	g_debug("h_requests::get_ride_of_sombies: entering with cantidad = %d",cantidad);
+	http_request** tmp = g_new0(http_request*, hs_array->cantidad - hs_array->removidos);
 	
-	for (unsigned int i = 0; i < cantidad; i++){
+	unsigned int a = 0;
+	
+	for (unsigned int i = 0;i<hs_array->cantidad;i++) {
 		
-		g_debug("checking request %d",g_io_channel_unix_get_fd (items[i]->sock));
-		if (!(items[i]->is_used)) {
+		if (hs_array->items[i] != NULL) {
 			
-			g_debug("getting rid of sombie %d",g_io_channel_unix_get_fd(items[i]->sock));
-
-			//handle_read(items[i]->sock,G_IO_IN, items[i] );
-			
-			g_io_channel_shutdown(items[i]->sock,TRUE,NULL);
-			g_io_channel_unref( items[i]->sock );
-			remove(items[i]);
-			i = i - 1;
+			tmp[a] = hs_array->items[i];
+			a++;
 		}
 	}
-	g_debug("h_requests::get_ride_of_sombies: exit");
+	
+	g_free(hs_array->items);
+	hs_array->items = tmp;
+	hs_array->cantidad = hs_array->cantidad - hs_array->removidos;
+	hs_array->removidos = 0;
 }
-/***************************** end class h_requests methods ***********************/
+
+gboolean add_h_array_delayed(http_request* h ) {
+	
+	if (hs_array->locked == TRUE) return TRUE;
+	else {
+		
+		hs_array->locked = TRUE;
+		
+		http_request** tmp = g_new0(http_request*,hs_array->cantidad + 1);
+			
+		for (unsigned int i = 0; i < hs_array->cantidad;i++) tmp[i] = hs_array->items[i];
+			
+		g_free(hs_array->items);
+		hs_array->items = tmp;
+		hs_array->items[hs_array->cantidad-1] = h;
+		hs_array->cantidad++;
+		
+		show_socket_pairs1((char*)"add_h_array delayed", h);
+		h->source_id = g_io_add_watch(h->sock, G_IO_IN,(GIOFunc)handle_read, h);
+		
+		hs_array->locked = FALSE;
+	
+	}
+	return FALSE;
+}
+
+void add_h_array(http_request* h){
+
+	if (hs_array->locked == FALSE) {
+		
+		hs_array->locked = TRUE;
+		
+		http_request** tmp = g_new0(http_request*,hs_array->cantidad + 1);
+			
+		for (unsigned int i = 0; i < hs_array->cantidad;i++) tmp[i] = hs_array->items[i];
+			
+		g_free(hs_array->items);
+		hs_array->items = tmp;
+		hs_array->items[hs_array->cantidad-1] = h;
+		hs_array->cantidad++;
+		
+		show_socket_pairs1((char*)"add_h_array", h);
+		h->source_id = g_io_add_watch(h->sock, G_IO_IN,(GIOFunc)handle_read, h);
+		
+		hs_array->locked = FALSE;
+	}
+	else {
+		
+		g_timeout_add(50, (GSourceFunc) add_h_array_delayed, h);
+	}
+}
+
+gboolean show_socket_pairs1(gchar* function_name, http_request *h){
+
+	gint fd, r;
+	struct sockaddr_in local_addr, remote_addr;
+	unsigned int n = sizeof(struct sockaddr_in);
+	gchar localaddr_ip[16], remoteaddr_ip[16];
+	const gchar *r2;
+	unsigned short int local_port, remote_port;
+
+	fd = g_io_channel_unix_get_fd(h->sock);
+
+	r = getsockname (fd, (struct sockaddr *)&local_addr,  &n );
+	if (r == -1) { g_debug( "%s: getsockname failed: %m",function_name ); }
+
+	local_port = local_addr.sin_port;
+
+	r2 = (gchar*)inet_ntop( AF_INET, &local_addr.sin_addr, localaddr_ip, INET_ADDRSTRLEN );
+    	//g_assert( r2 != NULL );
+
+	n = sizeof(struct sockaddr_in);
+	r = getpeername (fd, (struct sockaddr *)&remote_addr,  &n );
+	if (r == -1) { g_debug( "%s: getpeername failed: %m",function_name );}
+
+	remote_port = remote_addr.sin_port;
+
+	r2 = (gchar*)inet_ntop( AF_INET, &remote_addr.sin_addr, remoteaddr_ip, INET_ADDRSTRLEN );
+    	//g_assert( r2 != NULL );
+
+	g_debug( "%s: fd = %d -- remote address = %s:%d -- local address = %s:%d",
+			function_name , fd, r2, remote_port, localaddr_ip, local_port);
+
+	return TRUE;
+
+}
 
 

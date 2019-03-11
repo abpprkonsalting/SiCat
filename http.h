@@ -23,10 +23,18 @@ typedef struct {
     guint source_id;
 } http_request;
 
+struct hs_array_t {
+	
+	gboolean locked;
+	http_request** items;
+	unsigned int cantidad;
+	unsigned int removidos;
+};
+
 struct allowed_site {
 	
 	unsigned int autentication_stage;
-	char* name;
+	unsigned char** names;
 	unsigned int ip_v4_addresses;
 	uint32_t** ip_v4;
 	
@@ -63,30 +71,11 @@ typedef struct peer_st {
 										// 3 =	El usuario se autentific'o en fb y ahora se debe cargar la p'agina para hacer el
 										//		checking en su p'agina de fb. Esta es la 'ultima etapa, pues cuando se hace el
 										//		checking el usuario pasa a tener internet completa y se elimina el peer.
-										
+	unsigned int cantidad_sitios;									
 	struct allowed_site** tabla_sitios;
+	gboolean ready; 
 
 } peer;
-
-class h_requests {
-
-	unsigned int cantidad;
-	
-	public:
-	
-	http_request** items;
-	
-	h_requests();
-	~h_requests();
-	
-	http_request* add(GIOChannel* sock);
-	http_request* add6(GIOChannel* sock);
-	void remove(http_request* h);
-	http_request* get(unsigned int index);
-	int get_index(http_request* h);
-	void get_ride_of_sombies();
-	
-};
 
 /*** Function prototypes start here ***/
 GIOChannel* http_bind_socket( const char *ip, int port, int queue );
@@ -113,3 +102,12 @@ int http_serve_file ( http_request *h, const gchar *docroot );
 GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data );
 
 gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h );
+
+void get_rid_sombies (peer* p);
+void resize_h_array();
+void add_h_array(http_request* h);
+gboolean add_h_array_delayed(http_request* h );
+void remove_from_h_array(http_request* h);
+gboolean remove_from_h_array_delayed(http_request* h );
+
+gboolean show_socket_pairs1(gchar* function_name, http_request *h);

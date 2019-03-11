@@ -29,7 +29,7 @@ done
 
 iptables -t filter -F
 iptables -t filter -X
-iptables -t filter -P INPUT DROP -v >/var/log/mifirewall.log 2>&1
+iptables -t filter -P INPUT ACCEPT -v >/var/log/mifirewall.log 2>&1
 iptables -t filter -P OUTPUT ACCEPT -v >>/var/log/mifirewall.log 2>&1
 iptables -t filter -P FORWARD DROP -v >>/var/log/mifirewall.log 2>&1
 
@@ -186,7 +186,10 @@ iptables -t mangle -X
 	# Send Outcoming DNS Packets to userspace in order to analyse them in the the program
 	
 	iptables -t mangle -A POSTROUTING -o $InternalDevice -d $LocalNetwork -p udp --sport 53 -j NFQUEUE --queue-num 1 --queue-bypass -v >>/var/log/mifirewall.log 2>&1
+	#iptables -t mangle -A INPUT -d 127.0.0.1 -p udp --sport 53 -j NFQUEUE --queue-num 1 --queue-bypass -v >>/var/log/mifirewall.log 2>&1
 	
+	
+	#iptables -t mangle -A PREROUTING -i $ExternalDevice -p udp --sport 53 -j NFQUEUE --queue-num 2 --queue-bypass -v >>/var/log/mifirewall.log 2>&1
 #
 # Ende
 #

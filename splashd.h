@@ -16,7 +16,6 @@
 #include <stdarg.h>
 
 # include "gateway.h"
-# include "dns.h"
 
 //#include <libnfnetlink/libnfnetlink.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
@@ -37,8 +36,10 @@ static int exit_signal = 0;
 static FILE* pid_file = NULL;
 gchar* macAddressFrom; 
 class comm_interface* wsk_comm_interface;
+class DNS_resolver* resolver;
 gchar* table;
 FILE * log_fd;
+struct hs_array_t* hs_array;
 
 class h_requests* requests;
 
@@ -65,9 +66,11 @@ struct nfq_q_handle
 
 struct nfq_handle* http_queue_handle;
 struct nfq_handle* output_queue_handle;
+struct nfq_handle* input_queue_handle;
 
 struct nfq_q_handle* http_q_queue_handle;
 struct nfq_q_handle* output_q_queue_handle;
+struct nfq_q_handle* input_q_queue_handle;
 
 gboolean show_socket_pairs(gchar* function_name, http_request *h);
 void peer_arp_dns(gchar* ip_add, gchar* hw_add);

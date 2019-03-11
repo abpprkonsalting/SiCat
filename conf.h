@@ -16,7 +16,7 @@ extern struct conf_t default_conf[];
 struct sites_t {
 	
 	unsigned int stage;
-	gchar* name;
+	unsigned char* name;
 };
 
 extern struct sites_t default_sites[];
