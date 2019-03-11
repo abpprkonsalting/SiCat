@@ -61,11 +61,7 @@ gboolean handle_read( GIOChannel *sock, GIOCondition cond, http_request *h ) {
 
 		http_request_ok(h);
 			
-		if (handle_request(h) == 0) {
-			
-			g_debug("handle_read: leaving without shutting down request fd = %d",g_io_channel_unix_get_fd (h->sock));
-			return FALSE;
-		}
+		handle_request(h);
 	
 	}
 	else if (r == 0) {
@@ -434,8 +430,7 @@ void g_syslog (const gchar* log_domain, GLogLevelFlags log_level,
     if (log_level & G_LOG_FLAG_FATAL) exit_signal = -1;
 }
 
-void initialize_log (void) 
-{
+void initialize_log (void) {
 	int level;
 	
 	if (strncmp( CONF("LogFacility"), "syslog", 6 ) == 0)
@@ -467,13 +462,326 @@ void initialize_log (void)
 	}
 }
 
+void peer_arp_dns(gchar* ip_add, gchar* hw_add) {
+    gchar ip[50], hw[18];
+    FILE *arp;
+
+    arp = fopen( "/proc/net/arp", "r" );
+    if ( arp == NULL ){
+    	g_warning( "Can't open /proc/net/arp: %m" );
+    	return;
+    }
+   
+    fscanf(arp, "%*s %*s %*s %*s %*s %*s %*s %*s %*s"); // Skip first line 
+    while (fscanf( arp, "%15s %*s %*s %17s %*s %*s\n", ip, hw ) != EOF){
+		if (strcmp( ip_add, ip) == 0 ) 
+			{
+				g_strncpy(hw_add, hw, sizeof(hw) );
+				break;
+			}
+    }
+
+    fclose( arp );
+
+}
+
+static int nfq_http_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,struct nfq_data *nfad, void *data){
+	
+	int id, n;
+	char *payload;
+	struct nfq_iphdr* ip_header;
+	struct nfq_tcphdr* tcp_header;
+	gchar ip[16];
+	gchar hw[18];
+	peer* p;
+	
+	g_message("lleg'o una solicitud http desde un cliente");
+	
+	struct nfqnl_msg_packet_hdr *ph = nfq_get_msg_packet_hdr(nfad);
+	if (ph)	id = ntohl(ph->packet_id);
+	
+	n = nfq_get_payload(nfad,(unsigned char**)&payload);
+	ip_header = (struct nfq_iphdr*) payload;
+
+	//g_debug("ip version = %x",ip_header->version);
+	//g_debug("ip header lenght = %x",ip_header->ihl);
+	
+	//g_debug("payload size = %d",n);
+	//g_debug("ip header lenght = %u",ntohs(ip_header->tot_len));
+
+	inet_ntop(AF_INET, &ip_header->saddr, ip, 16);
+	g_debug("http request ip source address = %s",ip);
+	
+	peer_arp_dns(ip, hw);
+	
+	g_debug("http request hw source address = %s",hw);
+	p = (peer*) g_hash_table_lookup(peer_tab, hw);
+	
+	inet_ntop(AF_INET, &ip_header->daddr, ip, 16);
+	g_debug("http request ip destination address = %s",ip);
+
+	
+	/*for (int i = 0; i < n; i++) {
+		g_debug(" 0x%1X ", payload[i] );
+		//g_debug(" %d ", payload[i] );
+	}*/
+	
+	if (p != NULL){
+		
+		int i = 0;
+		
+		switch (p->autentication_stage){
+			
+			case 0:
+			
+				g_debug("el peer a'un no est'a en fase de autentificaci'on, se ignora..");
+				nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+				break;
+			
+			case 1:
+				g_debug("peer en fase 1 de autentificaci'on, chequeando el paquete ip contra los sitios de la fase 1");
+				
+				while (p->tabla_sitios[i] != NULL){
+					
+					if (p->tabla_sitios[i]->autentication_stage != 1) break;
+					
+					for (int j=0;j<(int)p->tabla_sitios[i]->ip_v4_addresses;j++){
+						
+						if ( *(p->tabla_sitios[i]->ip_v4[j]) == ip_header->daddr) {
+							
+							g_debug("el paquete va a un sitio permitido para la fase 1, se deja pasar");
+							nfq_set_verdict2(qh, id, NF_ACCEPT, 3 ,0, NULL);
+							//nfq_set_verdict_mark(qh, id, NF_ACCEPT, 3 ,0, NULL);
+							
+							
+							//Chequear que es un paquete http, no ssl
+							
+							tcp_header = (struct nfq_tcphdr*) (payload + sizeof(*ip_header));
+							
+							g_debug("puerto destino del paquete = %d",ntohs(tcp_header->dest));
+							
+							if ( ntohs(tcp_header->dest) == 80 ) {
+								
+								http_request* h = g_new0(http_request, 1);
+								h->source_id = 0;
+								inet_ntop(AF_INET, &ip_header->saddr, h->peer_ip, 16);
+								inet_ntop(AF_INET, &ip_header->daddr, h->sock_ip, 16);
+								peer_arp_dns(h->peer_ip, h->hw);
+								
+								unsigned int size = (n - sizeof(*ip_header) - sizeof(*tcp_header));
+								gchar* buf_temp = g_strndup( (gchar*)(payload + sizeof(*ip_header) + sizeof(*tcp_header)),
+                                                         size);
+								
+								h->buffer = g_string_new("");
+								g_string_append(h->buffer, buf_temp);
+								g_free(buf_temp);
+								
+								gchar *header_end = strstr( h->buffer->str,"\r\n\r\n" );
+		
+								if (header_end != NULL) {
+									
+									http_parse_header(h, h->buffer->str);
+									http_parse_query (h, NULL);
+									
+									if ((strcmp( h->uri, "/Account/ExternalLogin" ) == 0) ){//& 
+												//( QUERY("provider") != NULL || QUERY("provider.x") != NULL ) ) {
+								
+										g_debug("nfq_http_callback: peer %s en proceso de autentificación, stage 2...", p->ip);
+								
+										p->autentication_stage = 2;
+									}
+								}
+								else {
+								
+									g_debug("nfq_http_callback: El mensaje http lleg'o fragmentado, no se anal'iza..");
+								}
+								
+							}
+							
+							return 0;
+						}
+					}
+					i++;
+				}
+				
+				nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+				break;
+			case 2:
+				
+				g_debug("peer en fase 2 de autentificaci'on, chequeando el paquete ip contra los sitios de la fase 2");
+				
+				while (p->tabla_sitios[i] != NULL){
+					
+					//if (p->tabla_sitios[i]->autentication_stage != 2) break;
+					//g_debug("e");
+					
+					for (int j=0;j<(int)p->tabla_sitios[i]->ip_v4_addresses;j++){
+						
+						//g_debug("direcci'on en la tabla = %d",*(p->tabla_sitios[i]->ip_v4[j]));
+						//g_debug("direcci'on del paquete = %d",ip_header->daddr);
+						
+						if ( *(p->tabla_sitios[i]->ip_v4[j]) == ip_header->daddr) {
+							
+							g_debug("el paquete va a un sitio permitido para la fase 2, se deja pasar");
+							nfq_set_verdict2(qh, id, NF_ACCEPT, 3 ,0, NULL);
+							return 0;
+						}
+					}
+					i++;
+				}
+				nfq_set_verdict(qh, id, NF_DROP, 0, NULL);				
+				break;
+			case 3:
+				
+				break;
+			default:
+				
+				break;
+		}
+	}
+	else {
+		
+		g_debug("el peer no existe");
+		nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+	}
+	return 0;
+}
+
+static int nfq_output_callback(struct nfq_q_handle *qh,struct nfgenmsg *nfmsg,struct nfq_data *nfad, void *data){
+	
+	int id, n;
+	char *payload;
+	gchar ip[16];
+	gchar hw[18];
+	struct DNS_PACKAGE* DNSpackage;
+	peer* p;
+	struct nfq_iphdr* ip_header;
+	
+	g_message("lleg'o una respuesta DNS desde el servidor DNS");
+	
+	n = nfq_get_payload(nfad,(unsigned char**)&payload);
+	
+	ip_header = (struct nfq_iphdr*) payload;
+	
+	inet_ntop(AF_INET, &ip_header->daddr, ip, 16);
+	g_debug("DNS package ip destination address = %s",ip);
+	
+	peer_arp_dns(ip, hw);
+	
+	g_debug("DNS package hw destination address = %s",hw);
+		
+	p = (peer*) g_hash_table_lookup(peer_tab, hw);
+	
+	if (p != NULL){	// Esto significa que el peer existe en el sistema, por lo tanto se est'a autenticando
+					// y es pertinente saber que es lo que va a buscar en internet por DNS.
+	
+		DNSpackage = parse_DNS_message(payload,n);
+		
+		bool at_least_one = FALSE;
+		
+		int i = 0;
+		while ((p->tabla_sitios[i] != NULL) && (at_least_one == FALSE)) {	// Esto se hace para cada sitio de la tabla
+			
+			g_debug("checking site name = %s",p->tabla_sitios[i]->name);
+			//if ( p->tabla_sitios[i]->autentication_stage == p->autentication_stage){ // Si el sitio de la tabla se corresponde con la etapa 
+																					 // de autentificaci'on en que se encuentra el peer.
+																									 				
+				if (ntohs(DNSpackage->dns_header->q_count) > 0) {
+					
+					/*gchar* str1 = g_strdup((gchar*)p->tabla_sitios[i]->name);
+					g_strreverse(str1);
+					gchar* str2 = g_strdup((gchar*)DNSpackage->dns_queries[0]->name);
+					g_strreverse(str2);*/
+					
+					//if (strncmp(str1,str2,13) == 0) {
+					if (strcmp((gchar*)p->tabla_sitios[i]->name,(gchar*)DNSpackage->dns_queries[0]->name) == 0) {
+			
+						for(int j = 0;j<ntohs(DNSpackage->dns_header->ans_count);j++){	// Para cada respuesta que lleg'o en el paquete DNS
+							
+							if(ntohs(DNSpackage->dns_answers[j]->resource->type) == 1) {	// Si tipo de respuesta es una direcci'on ipv4
+								
+								long *p1;
+								struct sockaddr_in a;
+								p1=(long*)DNSpackage->dns_answers[j]->rdata;
+								//a.sin_addr.s_addr=(*p1);
+
+								uint32_t** temp_addresses = g_new0(uint32_t*,p->tabla_sitios[i]->ip_v4_addresses + 1 );
+								
+								for (unsigned int l=0;l < p->tabla_sitios[i]->ip_v4_addresses;l++) temp_addresses[l] = p->tabla_sitios[i]->ip_v4[l];
+								
+								g_free(p->tabla_sitios[i]->ip_v4);
+
+								p->tabla_sitios[i]->ip_v4 = temp_addresses;
+								
+								p->tabla_sitios[i]->ip_v4[p->tabla_sitios[i]->ip_v4_addresses] = g_new0(uint32_t,1);
+								
+								p->tabla_sitios[i]->ip_v4_addresses++;
+								
+								memcpy(p->tabla_sitios[i]->ip_v4[p->tabla_sitios[i]->ip_v4_addresses - 1],p1,sizeof(uint32_t));
+								//strcpy(p->tabla_sitios[i]->ip_v4[p->tabla_sitios[i]->ip_v4_addresses - 1],inet_ntoa(a.sin_addr));
+								
+								a.sin_addr.s_addr=(*p->tabla_sitios[i]->ip_v4[p->tabla_sitios[i]->ip_v4_addresses - 1]);
+								g_debug("direccion ip_v4 # %d del sitio %s = %s",p->tabla_sitios[i]->ip_v4_addresses,
+										p->tabla_sitios[i]->name,inet_ntoa(a.sin_addr));
+								
+								at_least_one = TRUE;
+	
+							}				
+						}
+					}
+					//g_free(str1);
+					//g_free(str2);
+				}
+			//}
+			
+			i++;
+		}
+		
+		free_DNS_message(DNSpackage);	
+	}
+	else g_debug("La solicitud DNS no fue de un peer, se ignora..");
+
+	struct nfqnl_msg_packet_hdr *ph = nfq_get_msg_packet_hdr(nfad);
+	if (ph)	id = ntohl(ph->packet_id);
+	nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+	
+	return 0;
+}
+
+gboolean handle_http( GIOChannel *sock, GIOCondition cond, void* dummy  ){
+	
+	char buf[4096] __attribute__ ((aligned));
+	int r;
+		 
+	r = recv(g_io_channel_unix_get_fd (sock), buf, sizeof(buf) , 0);
+	g_debug("handle_http: datos recibidos = %d",r); 
+	nfq_handle_packet(http_queue_handle, buf, r);
+	
+	return TRUE;
+		
+}
+
+gboolean handle_output( GIOChannel *sock, GIOCondition cond, void* dummy  ){
+	
+	char buf[4096] __attribute__ ((aligned));
+	int r;
+		 
+	r = recv(g_io_channel_unix_get_fd (sock), buf, sizeof(buf) , 0); 
+	nfq_handle_packet(output_queue_handle, buf, r);
+	
+	return TRUE;
+		
+}
+
 /************* main ************/
 
 int main(int argc, char** argv)
 {
 	GMainLoop  *loop;
-	GIOChannel *sock, *sock6;
+	GIOChannel *sock, *sock6, *sock_http, *sock_DNS1;
 	int ret;
+	int n;
+	pid_t mypid;
 
 	/* read sicat.conf */
 	
@@ -494,11 +802,61 @@ int main(int argc, char** argv)
 
 	/* set network parameters */
 	set_network_defaults(nocat_conf);
+	
+	/* Initialize the input http queue */
+	
+	http_queue_handle = nfq_open();
+	if (!http_queue_handle) {
+		g_error("error during nfq_open() for http_handle");
+	}
+	if (nfq_unbind_pf(http_queue_handle, AF_INET) < 0) {
+		g_error("error during nfq_unbind_pf() for http_handle");
+	}
+	if (nfq_bind_pf(http_queue_handle, AF_INET) < 0) {
+		g_error("error during nfq_bind_pf() for http_handle");
+	}
+	http_q_queue_handle = nfq_create_queue(http_queue_handle, 0, &nfq_http_callback, NULL);
+	if (!http_q_queue_handle) {
+		g_error("error during nfq_create_queue() for http_handle");
+	}
+	if (nfq_set_mode(http_q_queue_handle, NFQNL_COPY_PACKET, 0xffff) < 0) {
+		g_error("can't set packet_copy mode for intput handle");
+	}
+	
+	sock_http = g_io_channel_unix_new(nfq_fd(http_queue_handle));
+	g_io_channel_set_encoding(sock_http,NULL,NULL);
+	
+	g_io_add_watch(sock_http, G_IO_IN, (GIOFunc) handle_http,NULL);
+	
+	/* Initialize the output DNS queue */
+	
+	output_queue_handle = nfq_open();
+	if (!output_queue_handle) {
+		g_error("error during nfq_open() for output_handle");
+	}
+	if (nfq_unbind_pf(output_queue_handle, AF_INET) < 0) {
+		g_error("error during nfq_unbind_pf() for output_handle");
+	}
+	if (nfq_bind_pf(output_queue_handle, AF_INET) < 0) {
+		g_error("error during nfq_bind_pf() for output_handle");
+	}
+	output_q_queue_handle = nfq_create_queue(output_queue_handle, 1, &nfq_output_callback, NULL);
+	if (!output_q_queue_handle) {
+		g_error("error during nfq_create_queue() for output_handle");
+	}
+	if (nfq_set_mode(output_q_queue_handle, NFQNL_COPY_PACKET, 0xffff) < 0) {
+		g_error("can't set packet_copy mode for intput handle");
+	}
+	sock_DNS1 = g_io_channel_unix_new(nfq_fd(output_queue_handle));
+	g_io_channel_set_encoding(sock_DNS1,NULL,NULL);
+	
+	g_io_add_watch(sock_DNS1, G_IO_IN, (GIOFunc) handle_output,NULL);
 
 	/* initialize the firewall */
 	
 	if (!g_file_test("/tmp/sicat.tmp",G_FILE_TEST_EXISTS)) {
 	
+		g_debug("initializing firewall");
 		fw_init(nocat_conf);
 		ret = creat("/tmp/sicat.tmp",O_RDWR);
 		if (ret == -1) return -1;

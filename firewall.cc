@@ -32,6 +32,40 @@ static void fw_exec_add_env(gchar *key, gchar *val, GPtrArray *env ) {
     g_ptr_array_add( env, p );
 }
 
+void redirecciona_http (http_request *h, peer* p ){
+	
+	gchar* redir = (gchar*)g_hash_table_lookup(h->query,"redirect");
+	GHashTable* args = g_hash_new();
+	GString* dest;
+
+	g_hash_set( args, "redirect",	redir );
+	g_hash_set( args, "usertoken",	get_peer_token(p) );
+	g_hash_set( args, "userMac",    p->hw );
+	g_hash_set( args, "deviceMac",	macAddressFrom);
+
+	dest = build_url( CONF("AuthServiceURL"), args );
+
+	if (CONFd("usewsk")) wsk_comm_interface->wsk_restart();
+	
+	// Aquí debo buscar un mecanismo que espere porque el websocket esté establecido antes de mandarle
+	// el redirect al usuario. Mientras se espera porque el websocket esté establecido se enviará una
+	// página de espera al usuario. Este mecanísmo llevará un time-out, el cual cuando esté cumplido
+	// le mostrará una página del error al usuario informándole que hay un error en la conexion con el
+	// servidor del sistema y por lo tanto debe avisar a la administración del sistema para resolverlo
+	// etc..
+	
+	http_send_redirect(h, dest->str);
+
+	g_string_free( dest, 1 );
+	g_hash_free( args );
+	
+    g_io_channel_shutdown(h->sock,FALSE,NULL);
+	g_io_channel_unref(h->sock );
+	http_request_free (h);
+	
+	return;
+}
+
 gboolean redirecciona_delayed (fw_action *act ){
 	
 	gchar* redir = (gchar*)g_hash_table_lookup(act->h->query,"redirect");
@@ -54,7 +88,7 @@ gboolean redirecciona_delayed (fw_action *act ){
 	// servidor del sistema y por lo tanto debe avisar a la administración del sistema para resolverlo
 	// etc..
 	
-	http_send_redirect(act->h, dest->str,act->p);
+	http_send_redirect(act->h, dest->str);
 
 	g_string_free( dest, 1 );
 	g_hash_free( args );
@@ -79,7 +113,7 @@ void redirecciona(GPid pid,gint status,fw_action* act){
 		
 }
 
-int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
+int fw_perform(gchar* action,GHashTable* conf,peer* p) {
 	
     GHashTable *data;
     GPtrArray *env;
@@ -90,7 +124,6 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
     fw_action* act = g_new0( fw_action, 1 );
 
     if (p != NULL) act->p = p;
-    if (h != NULL) act->h = h;
     
 	data = g_hash_dup(conf);
     
@@ -161,16 +194,16 @@ int fw_perform(gchar* action,GHashTable* conf,peer* p, http_request* h) {
 
 int fw_init ( GHashTable *conf ) {
 	
-    fw_perform( (gchar*)"ResetCmd", conf, NULL,NULL);
+    fw_perform( (gchar*)"ResetCmd", conf, NULL);
     
-    if (CONFd("IPv6")) fw_perform( (gchar*)"ResetCmd6", conf, NULL,NULL);
+    if (CONFd("IPv6")) fw_perform( (gchar*)"ResetCmd6", conf, NULL);
     
     return 0;
 }
 
 int fw_resettable (GHashTable *conf) {
 	
-	fw_perform( (gchar*)"InitCmd", conf, NULL,NULL);
+	fw_perform( (gchar*)"InitCmd", conf, NULL);
     
     return 0;
 }
@@ -196,8 +229,21 @@ peer* peer_new ( GHashTable* conf, http_request *h ) {
     p->start_time = g_new0(gchar,100);
     p->end_time = g_new0(gchar,100);
     p->token[0] = '\0';
-    p->status = 0;
-    //peer_extend_timeout(conf, p,conf_int( conf, "LoginGrace" ));
+
+	p->autentication_stage = 1;
+	g_debug("peer_new: peer %s en proceso de autentificación, stage 1...", p->ip);
+	
+	unsigned int i = 0;
+	while (default_sites[i].name != NULL) i++;
+	p->tabla_sitios = g_new0(struct allowed_site*,i+1);
+	
+	for (int j=0; j<i;j++){
+		
+		p->tabla_sitios[j] = g_new0(struct allowed_site,1);
+		p->tabla_sitios[j]->autentication_stage = default_sites[j].stage;
+		p->tabla_sitios[j]->name = g_strdup(default_sites[j].name);
+		//g_debug(p->tabla_sitios[j]->name);
+	}
     
     return p;
 }
@@ -209,7 +255,7 @@ void peer_free ( peer *p ) {
     g_free(p);
 }
 
-int peer_permit(GHashTable *conf, peer *p, http_request* h) {
+int peer_permit(GHashTable *conf, peer *p) {
     
 	struct tm *loctime;
 	
@@ -218,19 +264,17 @@ int peer_permit(GHashTable *conf, peer *p, http_request* h) {
 	
 	strftime (p->start_time, 100, "%H:%M:%S", loctime);
 	
-	if (h != NULL) p->current_time = p->current_time + CONFd("LoginGrace");
-	else p->current_time = p->current_time + CONFd("LoginTimeout");
+	p->current_time = p->current_time + CONFd("LoginTimeout");
 	
 	loctime = localtime (&p->current_time);
 	strftime (p->end_time, 100, "%H:%M:%S", loctime);
-	//g_debug("1.1");
-	if (!(fw_perform( (gchar*)"PermitCmd", conf, p,h) == 0)) return -1;
-	//g_debug("1.2");
-	if (h == NULL){
-		if (g_hash_table_remove(peer_tab,p->hw)) {
-			g_debug("peer_permit: removido el peer de la hashtable");
-			peer_free(p);
-		}
+
+	if (!(fw_perform( (gchar*)"PermitCmd", conf, p) == 0)) return -1;
+
+	
+	if (g_hash_table_remove(peer_tab,p->hw)) {
+		g_debug("peer_permit: removido el peer de la hashtable");
+		peer_free(p);
 	}
 
     return 0;
@@ -242,7 +286,7 @@ int peer_permit(GHashTable *conf, peer *p, http_request* h) {
     //g_message("peer status = %d",p->status);
     if (p->status != 1 ) {
     	
-		if (fw_perform((gchar*)"DenyCmd", conf, p,NULL) == 0) {
+		if (fw_perform((gchar*)"DenyCmd", conf, p) == 0) {
 				
 				peer_free(p);
 				//p->status = 1;

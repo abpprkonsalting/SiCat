@@ -77,6 +77,10 @@ iptables -t filter -F NoCat
 iptables -t filter -D FORWARD -j NoCat
 iptables -t filter -A FORWARD -j NoCat
 
+#iptables -t filter -A FORWARD -i $InternalDevice -s $LocalNetwork -p tcp --dport 80 -j NFQUEUE --queue-num 0 --queue-bypass
+#iptables -t filter -A FORWARD -i $InternalDevice -s $LocalNetwork -p tcp --dport 443 -j NFQUEUE --queue-num 0 --queue-bypass
+
+
 iptables -t filter -N NoCat_Ports
 iptables -t filter -F NoCat_Ports
 iptables -t filter -D NoCat -j NoCat_Ports
@@ -91,6 +95,11 @@ iptables -t filter -N NoCat_Inbound1
 iptables -t filter -F NoCat_Inbound1
 iptables -t filter -D NoCat -j NoCat_Inbound1
 iptables -t filter -A NoCat -j NoCat_Inbound1
+
+iptables -t filter -D NoCat -o $InternalDevice -d $LocalNetwork -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+iptables -t filter -A NoCat -o $InternalDevice -d $LocalNetwork -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT
+iptables -t filter -D NoCat -o $InternalDevice -d $LocalNetwork -p tcp --sport 443 -m state --state ESTABLISHED -j ACCEPT
+iptables -t filter -A NoCat -o $InternalDevice -d $LocalNetwork -p tcp --sport 443 -m state --state ESTABLISHED -j ACCEPT
 
 iptables -t nat -N NoCat_Capture
 iptables -t nat -F NoCat_Capture
@@ -119,6 +128,23 @@ iptables -t mangle -F NoCat1
 iptables -t mangle -D PREROUTING -i $InternalDevice -j NoCat1
 iptables -t mangle -A PREROUTING -i $InternalDevice -j NoCat1
 
+iptables -t mangle -D PREROUTING -i $InternalDevice -s $LocalNetwork -p tcp --dport 80 -m mark --mark 4 -j NFQUEUE --queue-num 0 --queue-bypass
+#iptables -t mangle -A PREROUTING -i $InternalDevice -s $LocalNetwork -p tcp --dport 80 -j LOG --log-level 4 --log-prefix 'SiCat'
+iptables -t mangle -A PREROUTING -i $InternalDevice -s $LocalNetwork -p tcp --dport 80 -m mark --mark 4 -j NFQUEUE --queue-num 0 --queue-bypass
+iptables -t mangle -D PREROUTING -i $InternalDevice -s $LocalNetwork -p tcp --dport 443 -m mark --mark 4 -j NFQUEUE --queue-num 0 --queue-bypass
+iptables -t mangle -A PREROUTING -i $InternalDevice -s $LocalNetwork -p tcp --dport 443 -m mark --mark 4 -j NFQUEUE --queue-num 0 --queue-bypass
+
+#iptables -t mangle -A PREROUTING -i $InternalDevice -s $LocalNetwork -p tcp --dport 80 -j LOG --log-level 4 --log-prefix 'SiCat'
+#iptables -t mangle -A PREROUTING -i $InternalDevice -s $LocalNetwork -p tcp --dport 443 -j LOG --log-level 4 --log-prefix 'SiCat'
+
+# Send Incoming and Outcoming DNS Packets to userspace in order to analyse them in the
+# the program
+
+#iptables -t mangle -A PREROUTING -i $InternalDevice -s $LocalNetwork -p udp --dport 53 -j NFQUEUE --queue-num 0 --queue-bypass >/var/log/SiCat.log 2>&1
+#iptables -t mangle -A POSTROUTING -o $InternalDevice -d $LocalNetwork -p udp --sport 53 -j NFQUEUE --queue-num 1 --queue-bypass >>/var/log/SiCat.log 2>&1
+
+#iptables -t mangle -A PREROUTING -i $InternalDevice -s $LocalNetwork -p udp --dport 53 -j NFQUEUE --queue-num 0 --queue-bypass
+iptables -t mangle -A POSTROUTING -o $InternalDevice -d $LocalNetwork -p udp --sport 53 -j NFQUEUE --queue-num 1 --queue-bypass
 
 fwd="iptables	    -t filter -A NoCat"
 ports="iptables	    -t filter -A NoCat_Ports"
@@ -153,10 +179,13 @@ for iface in $InternalDevice; do
 
 		for fwmark in $classes; do
 			# Only forward tagged traffic per class
+			#$fwd -i $iface -s $net -m mark --mark $fwmark -j LOG --log-level 4 --log-prefix 'SiCat'
 			$fwd -i $iface -s $net -m mark --mark $fwmark -j ACCEPT
+			#$fwd -o $iface -d $net -m mark --mark $fwmark -j LOG --log-level 4 --log-prefix 'SiCat'
 			$fwd -o $iface -d $net -m mark --mark $fwmark -j ACCEPT
 			
 			# Masquerade permitted connections.
+			#$nat -o $ExternalDevice -s $net -m mark --mark $fwmark -j LOG --log-level 4 --log-prefix 'SiCat'
 			$nat -o $ExternalDevice -s $net -m mark --mark $fwmark -j MASQUERADE
 		done
 

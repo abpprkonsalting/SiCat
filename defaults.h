@@ -68,7 +68,35 @@ struct conf_t default_conf[] = {
     { NULL, NULL }
 };
 
+struct sites_t default_sites[] = {
+	
+	{ (unsigned int) 1, (gchar*)"www.datalnet.com"},
+	{ (unsigned int) 1, (gchar*)"socialap.blob.core.windows.net"},
+	{ (unsigned int) 2, (gchar*)"www.datalnet.com"},
+	{ (unsigned int) 2, (gchar*)"www.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"es-la.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"es-es.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"fr-fr.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"fr-ca.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"id-id.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"it-it.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"ko-kr.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"th-th.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"vi-vn.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"fbstatic-a.akamaihd.net"},
+	{ (unsigned int) 2, (gchar*)"pixel.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"error.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"developers.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"apps.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"apps.beta.facebook.com"},
+//	{ (unsigned int) 3, (gchar*)"www.datalnet.com"},
+	
+    // Trailing NULL
+    { (unsigned int) NULL, (gchar*) NULL }
+};
+
 struct mime_type_t mime_types[] = {
+	
     { (gchar*)"hqx", (gchar*)"application/mac-binhex40" },
     { (gchar*)"doc", (gchar*)"application/msword" },
     { (gchar*)"bin", (gchar*)"application/octet-stream" },
@@ -123,4 +151,8 @@ struct mime_type_t mime_types[] = {
     { (gchar*)"rv", (gchar*)"video/vnd.rn-realvideo" },
     { (gchar*)"rm", (gchar*)"application/vnd.rn-realmedia" },
     { (gchar*)"wav", (gchar*)"audio/wav" },
-    { NULL, NULL } };
+    
+    { NULL, NULL }
+};
+
+

@@ -12,6 +12,15 @@ struct conf_t {
 };
 
 extern struct conf_t default_conf[];
+
+struct sites_t {
+	
+	unsigned int stage;
+	gchar* name;
+};
+
+extern struct sites_t default_sites[];
+
 //extern GHashTable *nocat_conf;
 
 /*** Function prototypes start here ***/

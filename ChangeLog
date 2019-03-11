@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+2014-09-15:
+
+Implementing a new approach on how to control the access of the client to Internet based on tracking the url / ips the client is requesting,
+and comparing against a known table of authorized url for the phase the client is currently. This table is populated with the own DNS requests from 
+the client.
+
+The software need to have a table of known urls the client will be authorized to access during the different authentication phases. This table will be provided
+by the central server using the websocket interface on device start (and probably actualized periodically). Let's say this device will implement "facebook 
+authentication", then the central server will be provided a list like: www.facebook.com, m.facebook.com, p.facebook.com, etc. to populate the table. The urls of the 
+central server will exist in this table always, as it will always be necessary that the client access the central server in the first stages of the auth proccess. 
+
+When the client ask for dns information about an url, lets say www.facebook.com, the answer to the request is checked against the known urls table and if in the 
+later there exists a record for that url then the ip is stored in the table. For each url in the table could be several ips, as is logic.
+
+When later the client makes any http request, the ip packages are intercepted and it's destination address is checked against the allowed urls table, if the corresponding
+url for the ip is allowed for the current authentication phase in which the client in on, then the packet is allowed. 
+
+The previously implemented periods will continue to exist as well as the punishment functionality.
+
+
 2014-09-09:
 
 Added the "punishment" function to clients who navigate during the grace period without being authenticated. If the grace period passes and the client

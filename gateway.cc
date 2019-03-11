@@ -11,12 +11,12 @@ extern class comm_interface* wsk_comm_interface;
 
 gchar* target_redirect(http_request *h){
 	
-    gchar *orig, *host   = HEADER("Host"); 
+    gchar *orig, *host = HEADER("Host"); 
     
     if ( host != NULL ) {
-		orig = g_strdup_printf( "http://%s%s", host, h->uri_orig );
+		orig = g_strdup_printf( "http://%s%s", host, h->uri);
     } else {
-		orig = CONF("HomePage");
+		orig = g_strdup_printf("http://%s",CONF("HomePage"));
     }
 
     return orig;
@@ -36,7 +36,7 @@ gchar* local_host( http_request *h ) {
 
 peer* find_peer ( http_request *h) {
 	
-    peer* p; 
+    peer* p;
     
     p = (peer*) g_hash_table_lookup(peer_tab, h->hw);
     
@@ -45,6 +45,7 @@ peer* find_peer ( http_request *h) {
 		g_hash_table_insert(peer_tab, (gpointer) p->hw, p);
 		
     }
+    //g_debug("peer address = %s",p->hw);
     return p;
 }
 
@@ -59,7 +60,7 @@ peer* find_peer ( http_request *h) {
     total_connections++;
     time(&last_connection);
 
-    peer_permit( nocat_conf, p,NULL);
+    peer_permit( nocat_conf, p);
 }*/
 
 /*void remove_peer ( peer *p ) {
@@ -92,7 +93,7 @@ void compare_token( gchar *hw, peer *p, struct mi_struct* fr){
 			if (strcmp(fr->trama->parameters->items[0]->valor,"true") == 0){
 				
 				g_debug("compare_token: peer %s autenticado, permitiendolo por todo el timeout...",hw);
-				peer_permit(nocat_conf, p,NULL);
+				peer_permit(nocat_conf, p);
 					
 			}
 		}

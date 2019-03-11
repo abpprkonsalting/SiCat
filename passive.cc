@@ -10,13 +10,15 @@
 //# include "websck.h"
 
 extern class h_requests* requests;
+extern class comm_interface* wsk_comm_interface;
 extern GHashTable* peer_tab;
+extern gchar* macAddressFrom;
 //gchar *splash_page = NULL;
 
 gboolean finish_punishment(peer* p){
 	
 	g_debug("quitando el castigo al peer %s", p->hw);
-	p->status = 0;
+	//p->status = 0;
 	g_debug("castigo quitado");
 	return FALSE;
 }
@@ -31,7 +33,7 @@ gboolean check_peer_grace_finish(gchar* p_hw){
 					// quitado de la hashtable de peers en firewall.cc -> peer_permit
 		
 		g_debug("punishing peer %s", p->hw);
-		p->status = 1;
+		//p->status = 1;
 		p->punish_time = time(NULL);
 		g_timeout_add(CONFd("LoginPunish")*1000,(GSourceFunc) finish_punishment,p);
 	}
@@ -39,27 +41,40 @@ gboolean check_peer_grace_finish(gchar* p_hw){
 	return FALSE;
 }
 
-void capture_peer ( http_request *h ) {
+void capture_peer ( http_request *h,peer* p ) {
 	
-    gchar *dest, *orig = target_redirect(h);
-    gchar *redir = url_encode(orig);
+    //gchar *dest;
+    gchar *redir = target_redirect(h);
+    //gchar *redir = url_encode(orig);
+    GString* dest;
+    
+    GHashTable* args = g_hash_new();
 
-	if (*(h->sock_ip) != 0)
-    	dest = g_strdup_printf( "http://%s:%s/?redirect=%s",h->sock_ip, CONF("GatewayPort"), redir ); 
-    else dest = g_strdup_printf( "http://[%s]:%s/?redirect=%s",h->sock_ip6, CONF("GatewayPort"), redir ); 
+	g_hash_set( args, "redirect",	redir );
+	g_hash_set( args, "usertoken",	get_peer_token(p) );
+	g_hash_set( args, "userMac",    p->hw );
+	g_hash_set( args, "deviceMac",	macAddressFrom);
 
-    http_send_redirect( h, dest, NULL );
-
-    g_free( orig  );
-    g_free( redir );
-    g_free( dest  );
+	dest = build_url( CONF("AuthServiceURL"), args );
+	
+	if (CONFd("usewsk")) wsk_comm_interface->wsk_restart();
+	
+	// Aquí debo buscar un mecanismo que espere porque el websocket esté establecido antes de mandarle
+	// el redirect al usuario. Mientras se espera porque el websocket esté establecido se enviará una
+	// página de espera al usuario. Este mecanísmo llevará un time-out, el cual cuando esté cumplido
+	// le mostrará una página del error al usuario informándole que hay un error en la conexion con el
+	// servidor del sistema y por lo tanto debe avisar a la administración del sistema para resolverlo
+	// etc..
+	
+	http_send_redirect(h, dest->str);
+	
+	g_string_free( dest, 1 );
+	g_hash_free( args );
+	//g_free( orig  );
+	g_free( redir );
+	
+	return;    
 }
-
-/*void logout_peer( http_request *h, peer *p ) {
-	
-    remove_peer( p );
-    http_send_redirect( h, CONF("LogoutURL"), NULL );
-}*/
 
 int handle_request( http_request *h ) {
 	
@@ -69,59 +84,16 @@ int handle_request( http_request *h ) {
 	//g_debug("handle_request: entering..");
 	
 	p = find_peer(h);
-	//g_debug("handle_request: peer status = %d", p->status);
-	
-	if (p->status == 0){
 		
-		gchar *hostname = HEADER("Host");
-		gchar *sockname = local_host(h);
-	
-		if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
-	
-			capture_peer(h);
-		}
-		else if (strcmp( h->uri, "/" ) == 0) {
-	
-			if ( QUERY("mode_login") != NULL || QUERY("mode_login.x") != NULL ) {
-				
-				g_debug("handle_request: peer %s en proceso de autentificación, permitiendolo por el grace period...", h->peer_ip);
-				
-				peer_permit (nocat_conf,p,h);
-				
-				//g_debug("1");
-				
-				if (CONFd("AllowPunishment")){
-					peer_hw = g_new0(gchar,20);
-					strcpy(peer_hw,p->hw);
-					g_timeout_add(CONFd("LoginGrace")*1000,(GSourceFunc) check_peer_grace_finish,peer_hw);
-				}
-				//g_debug("2");
-				g_free( sockname );
-				//g_debug("handle_request: leaving..");
-				return 0;
-				
-				
-			}
-			else if ( QUERY("redirect") != NULL ) {
-				
-				splash_peer(h);
-			} 
-			else {
-				
-				capture_peer(h);
-			}
-		}
-		else {
-			http_serve_file( h, CONF("DocumentRoot") );
-		}
-		
-		g_free(sockname);
+	gchar *hostname = HEADER("Host");
+	gchar *sockname = local_host(h);
+
+	if (hostname == NULL || strcmp( hostname, sockname ) != 0) {
+
+		capture_peer(h,p);
 	}
-	else if (p->status == 1) {
-		
-		if (strcmp( h->uri, "/images/socialwifilogo.png" ) == 0) http_serve_file( h, CONF("DocumentRoot") );
-		else punish_peer(h,p);
-	}
+
+	g_free(sockname);
 
 	//g_debug("handle_request: leaving..");
     return 1;

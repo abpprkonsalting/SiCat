@@ -233,7 +233,6 @@ http_request* http_request_new6 ( GIOChannel* sock,int fd ) {
 void http_request_free ( http_request *h ) {
 	
     g_free( h->uri );
-    g_free(h->uri_orig);
     g_free( h->method );
     g_hash_free( h->header );
     g_hash_free( h->query );
@@ -286,8 +285,7 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 
     h->method = g_strdup( items[0] );
     h->uri    = g_strdup( items[1] );
-    h->uri_orig = g_strdup( items[1] );
-    
+        
     g_debug( "http_parse_header: method= %s", h->method );
     g_debug( "http_parse_header: uri= %s", h->uri );
     
@@ -316,7 +314,7 @@ GHashTable* http_parse_header (http_request *h, gchar *req) {
 
     g_strfreev( lines );
     
-    if (h->header != NULL) g_hash_free(h->header);
+    if (h->header != NULL) g_hash_free(h->header);	//Chequear que aqu'i se est'a liberando tambi'en los strings en si, si es que hace falta.
     h->header = head;
     return head;
 }
@@ -452,7 +450,7 @@ static void http_compose_header ( gchar *key, gchar *val, GString *buf ) {
     return r;
 }*/
 
-GIOError http_send_header (http_request *h, int status, const gchar *msg, peer *p ) {
+GIOError http_send_header (http_request *h, int status, const gchar *msg) {
 	
     GString *hdr = g_string_new("");
     GIOError r;
@@ -473,10 +471,10 @@ GIOError http_send_header (http_request *h, int status, const gchar *msg, peer *
     return r;
 }
 
-void http_send_redirect( http_request *h, gchar *dest, peer *p ) {
+void http_send_redirect( http_request *h, gchar *dest) {
 	
     http_add_header ( h, "Location", dest );
-    http_send_header( h, 302, "Moved", p );
+    http_send_header( h, 302, "Moved");
 }
 
 gchar *http_fix_path (const gchar *uri, const gchar *docroot) {
@@ -545,7 +543,7 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     fd   = http_open_file( path, &status );
 
     http_add_header(  h, "Content-Type", http_mime_type( path ) );
-    http_send_header( h, status, fd == -1 ? "Not OK" : "OK", NULL );
+    http_send_header( h, status, fd == -1 ? "Not OK" : "OK");
 
     if ( fd != -1 )
 	http_sendfile( h, fd );
@@ -566,7 +564,7 @@ int http_serve_file ( http_request *h, const gchar *docroot ) {
     n = strlen(form);
 
     http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
-    http_send_header( h, 200, "OK", NULL);
+    http_send_header( h, 200, "OK");
 
     //r = g_io_channel_write( h->sock, form, n, &n );
     r = g_io_channel_write_chars(h->sock, form, n,&n,&gerror);
@@ -597,7 +595,7 @@ GIOError http_serve_template ( http_request *h, gchar *file, GHashTable *data1 )
     n = strlen(form);
 
     http_add_header( h, (gchar*)"Content-Type", (gchar*)"text/html" );
-    http_send_header( h, 200, "OK", NULL);
+    http_send_header( h, 200, "OK");
 
     r = g_io_channel_write( h->sock, form, n, &n );
 
