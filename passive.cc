@@ -23,6 +23,7 @@ gboolean finish_punishment(peer* p){
 	return FALSE;
 }
 
+/*
 gboolean check_peer_grace_finish(gchar* p_hw){
 	
 	peer* p; 
@@ -40,6 +41,7 @@ gboolean check_peer_grace_finish(gchar* p_hw){
 	g_free(p_hw);
 	return FALSE;
 }
+*/
 
 void capture_peer ( http_request *h,peer* p ) {
 	
@@ -129,6 +131,7 @@ void splash_peer ( http_request *h ) {
     }
 }
 
+/*
 void punish_peer ( http_request *h,peer* p ) {
 	
     GHashTable *data1;
@@ -167,3 +170,4 @@ void punish_peer ( http_request *h,peer* p ) {
 		g_free( path );
     }
 }
+*/

@@ -65,7 +65,7 @@ typedef struct peer_st {
 										//		checking el usuario pasa a tener internet completa y se elimina el peer.
 										
 	struct allowed_site** tabla_sitios;
-    
+
 } peer;
 
 class h_requests {

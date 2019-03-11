@@ -15,6 +15,7 @@ struct conf_t default_conf[] = {
     //{ (gchar*)"InternalDevice",	(gchar*)"0" },
     //{ (gchar*)"LocalNetwork",	(gchar*)"0" },*/
 
+	{ (gchar*)"InitMode",	(gchar*)"1"},
     { (gchar*)"FirewallPath",	(gchar*)NC_FIREWALL_PATH },
     { (gchar*)"ResetCmd",	(gchar*)"$FirewallPath/initialize.fw" },
     { (gchar*)"ResetCmd6",	(gchar*)"$FirewallPath/initialize6.fw" },
@@ -31,8 +32,6 @@ struct conf_t default_conf[] = {
     
     { (gchar*)"LoginTimeout",	 (gchar*)"1200" },
     { (gchar*)"LoginGrace",	 (gchar*)"180" },
-    { (gchar*)"LoginPunish",	 (gchar*)"300" },
-    { (gchar*)"AllowPunishment",	 (gchar*)"0" },
 
     //  Where to look for form templates?
     { (gchar*)"DocumentRoot",	 (gchar*)NC_DOCUMENT_ROOT },
@@ -73,23 +72,9 @@ struct sites_t default_sites[] = {
 	{ (unsigned int) 1, (gchar*)"www.datalnet.com"},
 	{ (unsigned int) 1, (gchar*)"socialap.blob.core.windows.net"},
 	{ (unsigned int) 2, (gchar*)"www.datalnet.com"},
-	{ (unsigned int) 2, (gchar*)"www.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"es-la.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"es-es.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"fr-fr.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"fr-ca.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"id-id.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"it-it.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"ko-kr.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"th-th.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"vi-vn.facebook.com"},
+	{ (unsigned int) 2, (gchar*)"facebook.com"},
 	{ (unsigned int) 2, (gchar*)"fbstatic-a.akamaihd.net"},
-	{ (unsigned int) 2, (gchar*)"pixel.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"error.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"developers.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"apps.facebook.com"},
-	{ (unsigned int) 2, (gchar*)"apps.beta.facebook.com"},
-//	{ (unsigned int) 3, (gchar*)"www.datalnet.com"},
+	{ (unsigned int) 2, (gchar*)"socialap.blob.core.windows.net"},
 	
     // Trailing NULL
     { (unsigned int) NULL, (gchar*) NULL }

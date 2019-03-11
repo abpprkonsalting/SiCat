@@ -1,6 +1,10 @@
 Changelog
 ---------
 
+2014-10-02:
+
+Removing the grace and punishment periods. First "functional" testing version based in the new approach.
+
 2014-09-15:
 
 Implementing a new approach on how to control the access of the client to Internet based on tracking the url / ips the client is requesting,

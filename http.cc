@@ -629,7 +629,7 @@ guint http_request_read (http_request *h) {
 		
 		channel_size = g_io_channel_get_buffer_size(h->sock);
 		
-		g_debug("http_request_read: channel_size = %d",channel_size);
+		//g_debug("http_request_read: channel_size = %d",channel_size);
 		
 		buf = g_new0( gchar, channel_size + 2 );
 		
@@ -650,7 +650,7 @@ guint http_request_read (http_request *h) {
 
 		}*/
 		
-		g_debug("http_request_read: caracteres leidos: %d", n);
+		//g_debug("http_request_read: caracteres leidos: %d", n);
 		
 		if (n == 0){
 
@@ -673,7 +673,7 @@ guint http_request_read (http_request *h) {
 		
 		h->is_used = TRUE;
 		
-		g_debug("http_request_read: request= %s",h->buffer->str);
+		//g_debug("http_request_read: request= %s",h->buffer->str);
 		
 		gchar *header_end = strstr( h->buffer->str,"\r\n\r\n" );
 		

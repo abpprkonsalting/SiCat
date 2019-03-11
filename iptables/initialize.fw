@@ -30,7 +30,7 @@ done
 iptables -t filter -F
 iptables -t filter -X
 iptables -t filter -P INPUT DROP -v >/var/log/mifirewall.log 2>&1
-iptables -t filter -P OUTPUT DROP -v >>/var/log/mifirewall.log 2>&1
+iptables -t filter -P OUTPUT ACCEPT -v >>/var/log/mifirewall.log 2>&1
 iptables -t filter -P FORWARD DROP -v >>/var/log/mifirewall.log 2>&1
 
 iptables -t nat -F
@@ -48,54 +48,52 @@ iptables -t mangle -X
 	iptables -t filter -N SiCat_Inbound0 -v >>/var/log/mifirewall.log 2>&1
 	iptables -t filter -N SiCat_Inbound1 -v >>/var/log/mifirewall.log 2>&1
 	
+	# Permitir acceso a los servicios DHCP/DNS desde cualquier interface menos la externa
+	
+	iptables -t filter -A INPUT ! -i $ExternalDevice -p udp --dport 53 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+	iptables -t filter -A INPUT ! -i $ExternalDevice -p udp --dport 67 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+	
+	# Permitir la entrada a los servicios para las conexiones que se hayan establecido desde el dispositivo
+	iptables -A INPUT -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+	
 	#####################################################################
 	##### Reglas de conexi'on al dispositivo desde la red interna #######
-	
-		##### Allow DHCP and DNS services from/to the internal network ######
-		iptables -t filter -A INPUT -i $InternalDevice -p udp --dport 67 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		iptables -t filter -A OUTPUT -o $InternalDevice -p udp --dport 68 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		iptables -t filter -A INPUT -i $InternalDevice -s $LocalNetwork -p udp --dport 53 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		iptables -t filter -A OUTPUT -o $InternalDevice -d $LocalNetwork -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		
-		## Allow access from the local network to the LuCi configuration page
-		iptables -t filter -A INPUT -i $InternalDevice -s $LocalNetwork -p tcp --dport 80 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		iptables -t filter -A OUTPUT -o $InternalDevice -d $LocalNetwork -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
 		
 		## Allow access from the local network to the sicat http server
 		iptables -t filter -A INPUT -i $InternalDevice -s $LocalNetwork -p tcp --dport 5280 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		iptables -t filter -A OUTPUT -o $InternalDevice -d $LocalNetwork -p tcp --sport 5280 -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
 		
-		## Allow access from the local network using telnet
+		if [ "$InitMode" ]; then
 		
-		iptables -t filter -A INPUT -i $InternalDevice -s $LocalNetwork -p tcp --dport 23 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		iptables -t filter -A OUTPUT -o $InternalDevice -d $LocalNetwork -p tcp --sport 23 -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+			## Allow access from the local network to the LuCi configuration page
+			iptables -t filter -A INPUT -i $InternalDevice -s $LocalNetwork -p tcp --dport 80 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+			
+			## Allow access from the local network using telnet
+			
+			iptables -t filter -A INPUT -i $InternalDevice -s $LocalNetwork -p tcp --dport 23 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+			
+			## Allow access from the local network using ssh
+			
+			iptables -t filter -A INPUT -i $InternalDevice -s $LocalNetwork -p tcp --dport 22 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
 		
-		## Allow access from the local network using ssh
-		
-		iptables -t filter -A INPUT -i $InternalDevice -s $LocalNetwork -p tcp --dport 22 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		iptables -t filter -A OUTPUT -o $InternalDevice -d $LocalNetwork -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		
-		
+		fi
+			
 	#######################################################################
 	##### Reglas de conexi'on al dispositivo desde la red permitida #######
 	
 		if [ "$AllowedDevice" ]; then
-			##### Allow DHCP and DNS services from/to the internal network ######
-			iptables -t filter -A INPUT -i $AllowedDevice -p udp --dport 67 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-			iptables -t filter -A OUTPUT -o $AllowedDevice -p udp --dport 68 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-			iptables -t filter -A INPUT -i $AllowedDevice -p udp --dport 53 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-			iptables -t filter -A OUTPUT -o $AllowedDevice -p udp --sport 53 -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
 			
 			## Allow access from the local network to the LuCi configuration page
 			iptables -t filter -A INPUT -i $AllowedDevice -p tcp --dport 80 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-			iptables -t filter -A OUTPUT -o $AllowedDevice -p tcp --sport 80 -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+			
+			## Allow access from the local network using telnet
+			
+			iptables -t filter -A INPUT -i $AllowedDevice -s $AllowedNetwork -p tcp --dport 23 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+			
+			## Allow access from the local network using ssh
+			
+			iptables -t filter -A INPUT -i $AllowedDevice -s $AllowedNetwork -p tcp --dport 22 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
+		
 		fi
-	
-	#######################################################################	
-	##### Reglas de salida del dispositivo al mundo exterior ##############
-	
-		iptables -t filter -A OUTPUT -o $ExternalDevice -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		iptables -t filter -A INPUT -i $ExternalDevice -m state --state ESTABLISHED -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
 	
 	#######################################################################
 	##### Reglas para el tr'afico que se rutea a trav'es del dispositivo ##
@@ -130,18 +128,15 @@ iptables -t mangle -X
 				
 		#iptables -t filter -A FORWARD -m mark --mark 3 -j LOG --log-level 4 --log-prefix 'SiCat'
 		iptables -t filter -A FORWARD -m mark --mark 3 -j ACCEPT -v >>/var/log/mifirewall.log 2>&1
-		
-		# Dejar pasar el tr'afico http, est'e marcado o no, si no lo est'a en PREROUTING de la tabla nat se enviar'a al servidor interno
-		#iptables -t filter -A FORWARD -i $InternalDevice -p tcp --dport 80 -j ACCEPT
 
 
 ################################################################################################################################################################
 # Cadenas y reglas de SiCat en la tabla nat
 ################################################################################################################################################################
 	
-	# Redirect outbound non-marked http traffic to the local http server process
+	# Redirect outbound non-marked http traffic to the local http server process, except the traffic destinated to the box itself (LuCI)
 	
-	iptables  -t nat -A PREROUTING -i $InternalDevice -p tcp --dport 80 -m mark ! --mark 0x3 -j REDIRECT --to-port $GatewayPort -v >>/var/log/mifirewall.log 2>&1
+	iptables  -t nat -A PREROUTING -i $InternalDevice ! -d $GatewayAddr -p tcp --dport 80 -m mark ! --mark 0x3 -j REDIRECT --to-port $GatewayPort -v >>/var/log/mifirewall.log 2>&1
 
 
 	# Masquerade permitted connections if the system is not in RouteOnly mode 
@@ -166,7 +161,7 @@ iptables -t mangle -X
 	
 	# Marcar el tr'afico http desde la direcci'on 192.168.88.10 para poder entrarle al router por luci
 	
-	iptables -t mangle -A PREROUTING -i $InternalDevice -s 192.168.88.10 -p tcp --dport 80 -j MARK --set-mark 3 -v >>/var/log/mifirewall.log 2>&1
+	#iptables -t mangle -A PREROUTING -i $InternalDevice -s 192.168.88.10 -p tcp --dport 80 -j MARK --set-mark 3 -v >>/var/log/mifirewall.log 2>&1
 	
 	# Enviar todo lo que entre por la interface interna a las cadenas SiCat#, si hay alguna regla para un cliente ah'i se marcan
 	# los paquetes con la marca 3, por lo tanto en las pr'oximas reglas no van para espacio de usuario.

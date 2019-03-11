@@ -38,6 +38,7 @@ static FILE* pid_file = NULL;
 gchar* macAddressFrom; 
 class comm_interface* wsk_comm_interface;
 gchar* table;
+FILE * log_fd;
 
 class h_requests* requests;
 
