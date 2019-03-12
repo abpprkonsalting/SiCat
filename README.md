@@ -1,11 +1,10 @@
 # SiCat
+
+General system description
 =======================
 
 Captive portal firmware for client's authentication using social networks (www.facebook.com) 
 based in NoCatSplash. Tested to work with Mikrotik wifi router RB951Ui-2HnD with SO OpenWRT.
-
-General system description
-=======================
 
 The captive portal system SiCat with social network authentication is a system designed to 
 provide conditional access to networks (Internet) to users through WIFI networks in public places. 
