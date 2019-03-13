@@ -8,11 +8,11 @@ based in NoCatSplash. Tested to work with Mikrotik wifi router RB951Ui-2HnD with
 
 The captive portal system SiCat with social network authentication is a system designed to 
 provide conditional access to networks (Internet) to users through WIFI networks in public places. 
-The conditionality of this access is determined by the user login in a social network 
+The conditionality of this access is determined by the user loging in a social network 
 (currently implemented variant is facebook) and posting a predefined message of a sponsor.
 
 The system is composed by a firmware update that needs to be flashed in a capable router 
-(successfully tested with RB951Ui-2HnD with SO OpenWRT), and a central server that functions 
+(successfully tested with RB951Ui-2HnD with OS OpenWRT), and a central server that functions 
 as authentication server and central control point for all clients / devices.
 
 SiCat firmware description
