@@ -16,7 +16,7 @@ SiCat firmware description
 =======================
 
 Captive portal firmware for client's authentication using social networks (www.facebook.com) 
-based in NoCatSplash. Tested to work with Mikrotik wifi router RB951Ui-2HnD with SO OpenWRT.
+based in NoCatSplash. Tested to work with Mikrotik wifi router RB951Ui-2HnD with OS OpenWRT.
 
 This project is the firmware update to the router, and in its current stage it just provide service 
 based in two periods of times, one short in which the client is redirected to the central server so 
