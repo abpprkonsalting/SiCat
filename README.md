@@ -30,7 +30,7 @@ later versions after some issues with DNS caches used by browsers could be solve
 Support for https traffic capture and redirection (as conflicting as this could be for user experience) 
 is still under development.
 
-The project was stop at the begining of 2015. 
+The project was stopped at the begining of 2015. 
 
 
 
